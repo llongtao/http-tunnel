@@ -11,9 +11,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @author ndutertry
  */
 @SpringBootApplication
-public class App {
+public class ServerApp {
 
     public static void main(String[] args) {
-        SpringApplication.run(App.class, args);
+        SpringApplication.run(ServerApp.class, args);
     }
 }

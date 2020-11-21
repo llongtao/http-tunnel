@@ -39,8 +39,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class TunnelController {
     private static final Logger LOGGER = LoggerFactory.getLogger(TunnelController.class);
     
+    private static final String HEADER_CONNECTION_ID = "X-HTUNNEL-ID";
     private static final int BUFFER_SIZE = 1024;
-    private static final long WAIT_TIME = 10000L;
+    private static final long READ_WAIT_TIME = 10000L;
     
     private final Map<String , SocketChannel> channels = new ConcurrentHashMap<>();
     
@@ -63,7 +64,7 @@ public class TunnelController {
     }
 
     @RequestMapping(value = "/write", method = RequestMethod.POST)
-    public void write(@RequestHeader("X-SOH-ID") String connectionId, @RequestBody String body) throws IOException {
+    public void write(@RequestHeader(HEADER_CONNECTION_ID) String connectionId, @RequestBody String body) throws IOException {
         
         LOGGER.debug("New write request for ID {} with body {}", connectionId, body);
         
@@ -82,7 +83,7 @@ public class TunnelController {
     }
     
     @RequestMapping(value = "/read", method = RequestMethod.GET)
-    public String read(@RequestHeader("X-SOH-ID") String connectionId) throws IOException {
+    public String read(@RequestHeader(HEADER_CONNECTION_ID) String connectionId) throws IOException {
         
         LOGGER.debug("New read request for ID {}", connectionId);
         
@@ -113,7 +114,7 @@ public class TunnelController {
                     }
                     
                     long now = System.currentTimeMillis();
-                    if(now-startTime >= WAIT_TIME) {
+                    if(now-startTime >= READ_WAIT_TIME) {
                         return "";
                     }
                 }
@@ -122,7 +123,7 @@ public class TunnelController {
     }
     
     @RequestMapping(value = "/close", method = RequestMethod.GET)
-    public void close(@RequestHeader("X-SOH-ID") String connectionId) throws IOException {
+    public void close(@RequestHeader(HEADER_CONNECTION_ID) String connectionId) throws IOException {
         
         LOGGER.info("New close request for ID {}", connectionId);
         
@@ -161,7 +162,6 @@ public class TunnelController {
     @RequestMapping(value = "/", method = RequestMethod.GET)
     public String about(final HttpServletRequest request, final HttpServletResponse response)
             throws URISyntaxException, IOException {
-        return "SOH";
-
+        return "htunnel";
     }
 }

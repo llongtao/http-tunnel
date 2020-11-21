@@ -33,6 +33,8 @@ import org.slf4j.LoggerFactory;
  */
 public class TunnelClient implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(TunnelClient.class);
+    
+    private static final String HEADER_CONNECTION_ID = "X-HTUNNEL-ID";
     private static final int BUFFER_SIZE = 1024;
     
     private final SocketChannel socketChannel;
@@ -99,7 +101,7 @@ public class TunnelClient implements Runnable {
                     .build();
             while(!Thread.currentThread().isInterrupted()) {
                 HttpGet httpget = new HttpGet(readUri);
-                httpget.addHeader("X-SOH-ID", connectionId);
+                httpget.addHeader(HEADER_CONNECTION_ID, connectionId);
                 try(CloseableHttpResponse response = httpclient.execute(httpget)) {
                     if(response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                         LOGGER.error("Error while reading: {}", response.getStatusLine());
@@ -149,7 +151,7 @@ public class TunnelClient implements Runnable {
                                 .build();
                         
                         HttpPost httppost = new HttpPost(writeUri);
-                        httppost.addHeader("X-SOH-ID", connectionId);
+                        httppost.addHeader(HEADER_CONNECTION_ID, connectionId);
                         httppost.setEntity(new StringEntity(body, "UTF-8"));
                         
                         try(CloseableHttpResponse response = httpclient.execute(httppost)) {
@@ -178,7 +180,7 @@ public class TunnelClient implements Runnable {
                     .build();
             
             HttpGet httpget = new HttpGet(closeUri);
-            httpget.addHeader("X-SOH-ID", connectionId);
+            httpget.addHeader(HEADER_CONNECTION_ID, connectionId);
             try(CloseableHttpResponse response = httpclient.execute(httpget)) {
                 EntityUtils.consume(response.getEntity());
             }
