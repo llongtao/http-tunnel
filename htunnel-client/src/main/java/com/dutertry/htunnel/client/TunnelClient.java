@@ -14,11 +14,15 @@ import java.util.Base64;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
@@ -57,9 +61,22 @@ public class TunnelClient implements Runnable {
         HttpClientBuilder builder = HttpClients.custom();
         if(StringUtils.isNotBlank(proxy)) {
             URI proxyUri = new URI(proxy);
+            
             HttpHost proxy = new HttpHost(proxyUri.getHost(), proxyUri.getPort(), proxyUri.getScheme());
             DefaultProxyRoutePlanner routePlanner = new DefaultProxyRoutePlanner(proxy);
             builder.setRoutePlanner(routePlanner);
+
+            // Proxy authentication
+            String userInfo = proxyUri.getUserInfo();
+            if(StringUtils.isNotBlank(userInfo)) {
+                String user = StringUtils.substringBefore(userInfo, ":");
+                String password = StringUtils.substringAfter(userInfo, ":");
+                CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                credentialsProvider.setCredentials(
+                    new AuthScope(proxyUri.getHost(), proxyUri.getPort()), 
+                    new UsernamePasswordCredentials(user, password));
+                builder.setDefaultCredentialsProvider(credentialsProvider);
+            }
         }
         return  builder.build();
     }
