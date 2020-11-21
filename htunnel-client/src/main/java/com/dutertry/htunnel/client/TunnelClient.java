@@ -5,6 +5,7 @@ package com.dutertry.htunnel.client;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -37,55 +38,24 @@ public class TunnelClient implements Runnable {
     private final SocketChannel socketChannel;
     private final String host;
     private final int port;
-    private final String tunnelHost;
-    private final int tunnelPort;
-    private final String proxyHost;
-    private final int proxyPort;
+    private final String tunnel;
+    private final String proxy;
     
     private String connectionId;
     
-    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnelHost, int tunnelPort, String proxyHost, int proxyPort) {
+    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy) {
         this.socketChannel = socketChannel;
         this.host = host;
         this.port = port;
-        this.tunnelHost = tunnelHost;
-        this.tunnelPort = tunnelPort;
-        this.proxyHost = proxyHost;
-        this.proxyPort = proxyPort;
-    }
-
-    public SocketChannel getSocketChannel() {
-        return socketChannel;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public String getTunnelHost() {
-        return tunnelHost;
-    }
-
-    public int getTunnelPort() {
-        return tunnelPort;
-    }
-
-    public String getProxyHost() {
-        return proxyHost;
-    }
-
-    public int getProxyPort() {
-        return proxyPort;
+        this.tunnel = tunnel;
+        this.proxy = proxy;
     }
     
-    public CloseableHttpClient createHttpCLient() {
+    public CloseableHttpClient createHttpCLient() throws URISyntaxException {
         HttpClientBuilder builder = HttpClients.custom();
-        if(StringUtils.isNotBlank(proxyHost)) {
-            HttpHost proxy = new HttpHost(proxyHost, proxyPort, "http");
+        if(StringUtils.isNotBlank(proxy)) {
+            URI proxyUri = new URI(proxy);
+            HttpHost proxy = new HttpHost(proxyUri.getHost(), proxyUri.getPort(), proxyUri.getScheme());
             DefaultProxyRoutePlanner routePlanner = new DefaultProxyRoutePlanner(proxy);
             builder.setRoutePlanner(routePlanner);
         }
@@ -94,12 +64,9 @@ public class TunnelClient implements Runnable {
 
     @Override
     public void run() {
-        LOGGER.info("Connecting to tunnel {}:{}", tunnelHost, tunnelPort);
+        LOGGER.info("Connecting to tunnel {}", tunnel);
         try(CloseableHttpClient httpclient = createHttpCLient()) {
-            URI connectUri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(tunnelHost)
-                    .setPort(tunnelPort)
+            URI connectUri = new URIBuilder(tunnel)
                     .setPath("/connect")
                     .setParameter("host", host)
                     .setParameter("port", Integer.toString(port))
@@ -127,10 +94,7 @@ public class TunnelClient implements Runnable {
     
     private void readLoop() {
         try(CloseableHttpClient httpclient = createHttpCLient()) {
-            URI readUri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(tunnelHost)
-                    .setPort(tunnelPort)
+            URI readUri = new URIBuilder(tunnel)
                     .setPath("/read")
                     .build();
             while(!Thread.currentThread().isInterrupted()) {
@@ -180,10 +144,7 @@ public class TunnelClient implements Runnable {
                         String body = StandardCharsets.UTF_8.decode(encodedBuffer).toString();
                         bb.clear();
                         
-                        URI writeUri = new URIBuilder()
-                                .setScheme("http")
-                                .setHost(tunnelHost)
-                                .setPort(tunnelPort)
+                        URI writeUri = new URIBuilder(tunnel)
                                 .setPath("/write")
                                 .build();
                         
@@ -212,10 +173,7 @@ public class TunnelClient implements Runnable {
         }
         
         try(CloseableHttpClient httpclient = createHttpCLient()) {
-            URI closeUri = new URIBuilder()
-                    .setScheme("http")
-                    .setHost(tunnelHost)
-                    .setPort(tunnelPort)
+            URI closeUri = new URIBuilder(tunnel)
                     .setPath("/close")
                     .build();
             

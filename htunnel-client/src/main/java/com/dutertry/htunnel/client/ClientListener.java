@@ -11,28 +11,31 @@ import java.nio.channels.SocketChannel;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Controller;
 
 /**
  * @author ndutertry
  *
  */
-@Component
+@Controller
 public class ClientListener implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientListener.class);
     
-    private int port = 3000;
+    @Value("${port:3000}")
+    private int port;
     
-    private String targetHost = "epsilon";
-    private int targetPort = 22;
+    @Value("${target}")
+    private String target;
     
-    private String tunnelHost = "epsilon.dutertry.com";
-    private int tunnelPort = 8080;
+    @Value("${tunnel}")
+    private String tunnel;
     
-    private String proxyHost = null;
-    private int proxyPort = 0;
+    @Value("${proxy:}")
+    private String proxy;
     
     private Thread thread;
     
@@ -44,7 +47,9 @@ public class ClientListener implements Runnable {
     }
     
     public void run() {
-        try(ServerSocketChannel ssc = ServerSocketChannel.open()) {            
+        String targetHost = StringUtils.substringBeforeLast(target, ":");
+        int targetPort = Integer.parseInt(StringUtils.substringAfterLast(target, ":"));
+        try(ServerSocketChannel ssc = ServerSocketChannel.open()) {
             ssc.socket().bind(new InetSocketAddress(port));
             LOGGER.info("Waiting for connection on port " + port);
         
@@ -53,11 +58,11 @@ public class ClientListener implements Runnable {
                 LOGGER.info("New connection received");
                 socketChannel.configureBlocking(false);
                 
-                TunnelClient tunnel = new TunnelClient(socketChannel,
+                TunnelClient tunnelClient = new TunnelClient(socketChannel,
                         targetHost, targetPort,
-                        tunnelHost, tunnelPort,
-                        proxyHost, proxyPort);
-                Thread thread = new Thread(tunnel);
+                        tunnel,
+                        proxy);
+                Thread thread = new Thread(tunnelClient);
                 thread.setDaemon(true);
                 thread.start();
             }
