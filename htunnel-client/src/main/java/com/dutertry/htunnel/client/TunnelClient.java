@@ -21,6 +21,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -46,15 +47,17 @@ public class TunnelClient implements Runnable {
     private final int port;
     private final String tunnel;
     private final String proxy;
+    private final boolean base64Encoding;
     
     private String connectionId;
     
-    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy) {
+    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy, boolean base64Encoding) {
         this.socketChannel = socketChannel;
         this.host = host;
         this.port = port;
         this.tunnel = tunnel;
         this.proxy = proxy;
+        this.base64Encoding = base64Encoding;
     }
     
     public CloseableHttpClient createHttpCLient() throws URISyntaxException {
@@ -125,14 +128,19 @@ public class TunnelClient implements Runnable {
                         break;
                     }
                     
-                    String body = EntityUtils.toString(response.getEntity());
-                    if(StringUtils.isNotEmpty(body)) {
-                        byte[] bytes = Base64.getDecoder().decode(body);
-                        if(bytes.length > 0) {
-                            ByteBuffer bb = ByteBuffer.wrap(bytes);
-                            while(bb.hasRemaining()) {
-                                socketChannel.write(bb);
-                            }
+                    byte[] bytes = null;
+                    if(base64Encoding) {
+                        String body = EntityUtils.toString(response.getEntity());
+                        if(StringUtils.isNotEmpty(body)) {
+                            bytes = Base64.getDecoder().decode(body);                            
+                        }
+                    } else {
+                        EntityUtils.toByteArray(response.getEntity());                        
+                    }
+                    if(bytes != null && bytes.length > 0) {
+                        ByteBuffer bb = ByteBuffer.wrap(bytes);
+                        while(bb.hasRemaining()) {
+                            socketChannel.write(bb);
                         }
                     }
                 }
@@ -158,18 +166,24 @@ public class TunnelClient implements Runnable {
                 
                 if(!bb.hasRemaining() || read <= 0) {
                     if(bb.position() > 0) {
-                        bb.flip();
-                        ByteBuffer encodedBuffer = Base64.getEncoder().encode(bb);
-                        String body = StandardCharsets.UTF_8.decode(encodedBuffer).toString();
-                        bb.clear();
-                        
                         URI writeUri = new URIBuilder(tunnel)
                                 .setPath("/write")
                                 .build();
                         
                         HttpPost httppost = new HttpPost(writeUri);
                         httppost.addHeader(HEADER_CONNECTION_ID, connectionId);
-                        httppost.setEntity(new StringEntity(body, "UTF-8"));
+                        
+                        bb.flip();
+                        
+                        if(base64Encoding) {
+                            ByteBuffer encodedBuffer = Base64.getEncoder().encode(bb);
+                            String body = StandardCharsets.UTF_8.decode(encodedBuffer).toString();
+                            httppost.setEntity(new StringEntity(body, "UTF-8"));
+                        } else {
+                            httppost.setEntity(new ByteArrayEntity(bb.array(), 0, bb.limit()));
+                        }
+                        
+                        bb.clear();
                         
                         try(CloseableHttpResponse response = httpclient.execute(httppost)) {
                             if(response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {

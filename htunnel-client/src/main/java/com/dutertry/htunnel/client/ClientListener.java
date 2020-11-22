@@ -61,7 +61,8 @@ public class ClientListener implements Runnable {
                 TunnelClient tunnelClient = new TunnelClient(socketChannel,
                         targetHost, targetPort,
                         tunnel,
-                        proxy);
+                        proxy,
+                        true);
                 Thread thread = new Thread(tunnelClient);
                 thread.setDaemon(true);
                 thread.start();

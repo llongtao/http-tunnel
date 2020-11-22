@@ -73,11 +73,11 @@ public class TunnelController {
     public void write(
             HttpServletRequest request,
             @RequestHeader(HEADER_CONNECTION_ID) String connectionId,
-            @RequestBody String body) throws IOException {
+            @RequestBody byte[] body) throws IOException {
         
         String ipAddress = request.getRemoteAddr();
         
-        LOGGER.debug("New write request from {} for ID {} with body {}", ipAddress, connectionId, body);
+        LOGGER.debug("New write request from {} for ID {} with body length {}", ipAddress, connectionId, body.length);
         
         SocketChannel socketChannel = getSocketChannel(ipAddress, connectionId);
         
