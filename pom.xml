@@ -11,8 +11,7 @@
         <version>2.3.6.RELEASE</version>
     </parent>
     
-    
-    <name>SSH over HTTP</name><properties>
+    <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
