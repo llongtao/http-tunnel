@@ -6,6 +6,20 @@ It is typically used to perform SSH connections behind a corporate HTTP proxy th
 
 It consists of a client module (htunnel-client) to be installed in the private network behind the HTTP proxy and a server module (htunnel-server) to be installed anywere on the Internet.
 
+     ----------------------------------------------------------------   -----------------------------------------------
+    | Corporate Network                                              | | Internet                                      | 
+    |                                                                | |                                               |
+    |  --------------------------------------------                  | |                                               |
+    | | Employee PC                                |                 | |                                               |
+    | |                                            |                                                                   |
+    | |  ------------   TCP/IP   ----------------  | HTTP   -------  HTTP   ----------------   TCP/IP   ------------   |
+    | | | SSH Client |--------->| htunnel-client |-------->| Proxy |------>| htunnel-server |--------->| SSH Server |  |
+    | |  ------------            ----------------  |        -------         ----------------            ------------   |
+    | |                                            |                 | |                                               |
+    |  --------------------------------------------                  | |                                               |
+    |                                                                | |                                               |
+     ----------------------------------------------------------------   -----------------------------------------------
+
 ## Build
 
 The source code is written in Java and can be built with Apache Maven. Perform the following command in the root directory:
