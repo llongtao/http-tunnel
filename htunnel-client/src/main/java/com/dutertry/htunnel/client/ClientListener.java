@@ -53,6 +53,9 @@ public class ClientListener implements Runnable {
     @Value("${proxy:}")
     private String proxy;
     
+    @Value("${base64:false}")
+    private boolean base64Encoding;
+    
     private Thread thread;
     
     @PostConstruct
@@ -78,7 +81,7 @@ public class ClientListener implements Runnable {
                         targetHost, targetPort,
                         tunnel,
                         proxy,
-                        true);
+                        base64Encoding);
                 Thread thread = new Thread(tunnelClient);
                 thread.setDaemon(true);
                 thread.start();

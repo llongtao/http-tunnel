@@ -22,6 +22,8 @@ package com.dutertry.htunnel.server.controller;
 import java.nio.channels.SocketChannel;
 import java.time.LocalDateTime;
 
+import com.dutertry.htunnel.common.ConnectionConfig;
+
 /**
  *
  * @author Nicolas Dutertry
@@ -31,14 +33,17 @@ public class ClientConnection {
     
     private final String ipAddress;
     
+    private ConnectionConfig connectionConfig;
+    
     private final LocalDateTime creationDateTime;
     
     private final SocketChannel socketChannel;
     
-    public ClientConnection(String id, String ipAddress, LocalDateTime creationDateTime, SocketChannel socketChannel) {
+    public ClientConnection(String id, String ipAddress, ConnectionConfig connectionConfig, LocalDateTime creationDateTime, SocketChannel socketChannel) {
         super();
         this.id = id;
         this.ipAddress = ipAddress;
+        this.connectionConfig = connectionConfig;
         this.creationDateTime = creationDateTime;
         this.socketChannel = socketChannel;
     }
@@ -51,6 +56,14 @@ public class ClientConnection {
         return ipAddress;
     }
     
+    public ConnectionConfig getConnectionConfig() {
+        return connectionConfig;
+    }
+
+    public void setConnectionConfig(ConnectionConfig connectionConfig) {
+        this.connectionConfig = connectionConfig;
+    }
+
     public LocalDateTime getCreationDateTime() {
         return creationDateTime;
     }

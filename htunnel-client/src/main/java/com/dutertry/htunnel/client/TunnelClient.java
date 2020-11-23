@@ -38,6 +38,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -48,6 +49,11 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dutertry.htunnel.common.ConnectionConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import static com.dutertry.htunnel.common.Constants.*;
+
 /**
  * @author Nicolas Dutertry
  *
@@ -55,7 +61,6 @@ import org.slf4j.LoggerFactory;
 public class TunnelClient implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(TunnelClient.class);
     
-    private static final String HEADER_CONNECTION_ID = "X-HTUNNEL-ID";
     private static final int BUFFER_SIZE = 1024;
     
     private final SocketChannel socketChannel;
@@ -106,10 +111,21 @@ public class TunnelClient implements Runnable {
         try(CloseableHttpClient httpclient = createHttpCLient()) {
             URI connectUri = new URIBuilder(tunnel)
                     .setPath("/connect")
-                    .setParameter("host", host)
-                    .setParameter("port", Integer.toString(port))
                     .build();
-            try(CloseableHttpResponse response = httpclient.execute(new HttpGet(connectUri))) {
+            
+            ConnectionConfig connectionConfig = new ConnectionConfig();
+            connectionConfig.setHost(host);
+            connectionConfig.setPort(port);
+            connectionConfig.setBase64Encoding(base64Encoding);
+            
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.writeValueAsString(connectionConfig);
+            HttpPost httppost = new HttpPost(connectUri);
+            httppost.setEntity(new StringEntity(
+                    mapper.writeValueAsString(connectionConfig),
+                    ContentType.APPLICATION_JSON));
+            
+            try(CloseableHttpResponse response = httpclient.execute(httppost)) {
                 if(response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                     LOGGER.error("Error while connecting tunnel: {}", response.getStatusLine());
                     return;
@@ -151,7 +167,7 @@ public class TunnelClient implements Runnable {
                             bytes = Base64.getDecoder().decode(body);                            
                         }
                     } else {
-                        EntityUtils.toByteArray(response.getEntity());                        
+                        bytes = EntityUtils.toByteArray(response.getEntity());                        
                     }
                     if(bytes != null && bytes.length > 0) {
                         ByteBuffer bb = ByteBuffer.wrap(bytes);
