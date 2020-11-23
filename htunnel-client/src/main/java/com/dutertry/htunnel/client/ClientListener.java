@@ -34,7 +34,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 
 /**
- * @author ndutertry
+ * @author Nicolas Dutertry
  *
  */
 @Controller

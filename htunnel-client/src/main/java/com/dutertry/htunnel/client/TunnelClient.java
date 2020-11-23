@@ -49,7 +49,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * @author ndutertry
+ * @author Nicolas Dutertry
  *
  */
 public class TunnelClient implements Runnable {

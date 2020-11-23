@@ -22,6 +22,10 @@ package com.dutertry.htunnel.server.controller;
 import java.nio.channels.SocketChannel;
 import java.time.LocalDateTime;
 
+/**
+ *
+ * @author Nicolas Dutertry
+ */
 public class ClientConnection {
     private final String id;
     

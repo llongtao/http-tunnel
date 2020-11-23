@@ -25,7 +25,7 @@ import org.springframework.boot.context.ApplicationPidFileWriter;
 
 /**
  *
- * @author ndutertry
+ * @author Nicolas Dutertry
  */
 @SpringBootApplication
 public class ClientApp {
