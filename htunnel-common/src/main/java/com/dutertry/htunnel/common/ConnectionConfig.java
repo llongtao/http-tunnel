@@ -32,5 +32,7 @@ public class ConnectionConfig {
     
     private int port;
     
+    private int bufferSize;
+    
     private boolean base64Encoding;
 }

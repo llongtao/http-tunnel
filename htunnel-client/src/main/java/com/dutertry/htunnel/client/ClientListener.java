@@ -53,6 +53,9 @@ public class ClientListener implements Runnable {
     @Value("${proxy:}")
     private String proxy;
     
+    @Value("${buffer.size:1048576}")
+    private int bufferSize;
+    
     @Value("${base64:false}")
     private boolean base64Encoding;
     
@@ -81,6 +84,7 @@ public class ClientListener implements Runnable {
                         targetHost, targetPort,
                         tunnel,
                         proxy,
+                        bufferSize,
                         base64Encoding);
                 Thread thread = new Thread(tunnelClient);
                 thread.setDaemon(true);

@@ -19,6 +19,7 @@
  */
 package com.dutertry.htunnel.server.controller;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.time.LocalDateTime;
 
@@ -39,6 +40,8 @@ public class ClientConnection {
     
     private final SocketChannel socketChannel;
     
+    private final ByteBuffer readBuffer;
+    
     public ClientConnection(String id, String ipAddress, ConnectionConfig connectionConfig, LocalDateTime creationDateTime, SocketChannel socketChannel) {
         super();
         this.id = id;
@@ -46,6 +49,7 @@ public class ClientConnection {
         this.connectionConfig = connectionConfig;
         this.creationDateTime = creationDateTime;
         this.socketChannel = socketChannel;
+        this.readBuffer = ByteBuffer.allocate(connectionConfig.getBufferSize());
     }
 
     public String getId() {
@@ -70,5 +74,9 @@ public class ClientConnection {
 
     public SocketChannel getSocketChannel() {
         return socketChannel;
+    }
+
+    public ByteBuffer getReadBuffer() {
+        return readBuffer;
     }
 }

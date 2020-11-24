@@ -61,23 +61,23 @@ import static com.dutertry.htunnel.common.Constants.*;
 public class TunnelClient implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(TunnelClient.class);
     
-    private static final int BUFFER_SIZE = 1024;
-    
     private final SocketChannel socketChannel;
     private final String host;
     private final int port;
     private final String tunnel;
     private final String proxy;
+    private final int bufferSize;
     private final boolean base64Encoding;
     
     private String connectionId;
     
-    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy, boolean base64Encoding) {
+    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy, int bufferSize, boolean base64Encoding) {
         this.socketChannel = socketChannel;
         this.host = host;
         this.port = port;
         this.tunnel = tunnel;
         this.proxy = proxy;
+        this.bufferSize = bufferSize;
         this.base64Encoding = base64Encoding;
     }
     
@@ -116,6 +116,7 @@ public class TunnelClient implements Runnable {
             ConnectionConfig connectionConfig = new ConnectionConfig();
             connectionConfig.setHost(host);
             connectionConfig.setPort(port);
+            connectionConfig.setBufferSize(bufferSize);
             connectionConfig.setBase64Encoding(base64Encoding);
             
             ObjectMapper mapper = new ObjectMapper();
@@ -160,16 +161,14 @@ public class TunnelClient implements Runnable {
                         break;
                     }
                     
-                    byte[] bytes = null;
-                    if(base64Encoding) {
-                        String body = EntityUtils.toString(response.getEntity());
-                        if(StringUtils.isNotEmpty(body)) {
-                            bytes = Base64.getDecoder().decode(body);                            
+                    byte[] bytes = EntityUtils.toByteArray(response.getEntity());
+                    if(bytes.length > 0) {
+                        if(base64Encoding) {
+                            bytes = Base64.getDecoder().decode(bytes);
                         }
-                    } else {
-                        bytes = EntityUtils.toByteArray(response.getEntity());                        
-                    }
-                    if(bytes != null && bytes.length > 0) {
+                        
+                        LOGGER.debug("{} byte(s) received", bytes.length); 
+                        
                         ByteBuffer bb = ByteBuffer.wrap(bytes);
                         while(bb.hasRemaining()) {
                             socketChannel.write(bb);
@@ -191,7 +190,7 @@ public class TunnelClient implements Runnable {
     private void writeLoop() {
         try(CloseableHttpClient httpclient = createHttpCLient()) {
             
-            ByteBuffer bb = ByteBuffer.allocate(BUFFER_SIZE);
+            ByteBuffer bb = ByteBuffer.allocate(bufferSize);
             
             while(!Thread.currentThread().isInterrupted()) {
                 int read = socketChannel.read(bb);
@@ -206,6 +205,8 @@ public class TunnelClient implements Runnable {
                         httppost.addHeader(HEADER_CONNECTION_ID, connectionId);
                         
                         bb.flip();
+                        
+                        LOGGER.debug("{} byte(s) to send", bb.limit());
                         
                         if(base64Encoding) {
                             ByteBuffer encodedBuffer = Base64.getEncoder().encode(bb);

@@ -75,6 +75,7 @@ public class TunnelController {
         int port = connectionConfig.getPort();
         LOGGER.info("New connection received from {} for target {}:{}",
                 ipAddress, host, port);
+        LOGGER.info("Buffer size is {}", connectionConfig.getBufferSize());
         LOGGER.info("Base64 encoding is {}", connectionConfig.isBase64Encoding());
         
         SocketChannel socketChannel = SocketChannel.open();
@@ -127,7 +128,8 @@ public class TunnelController {
         ClientConnection connection = getConnection(ipAddress, connectionId);
         SocketChannel socketChannel = connection.getSocketChannel();
         
-        ByteBuffer bb = ByteBuffer.allocate(BUFFER_SIZE);
+        ByteBuffer bb = connection.getReadBuffer();
+        bb.clear();
         
         long startTime  = System.currentTimeMillis();
         while(true) {
