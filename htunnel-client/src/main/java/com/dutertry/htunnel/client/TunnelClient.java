@@ -19,13 +19,18 @@
  */
 package com.dutertry.htunnel.client;
 
+import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
 import java.util.Base64;
+
+import javax.crypto.Cipher;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHost;
@@ -38,7 +43,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -50,9 +54,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dutertry.htunnel.common.ConnectionConfig;
+import com.dutertry.htunnel.common.ConnectionRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import static com.dutertry.htunnel.common.Constants.*;
 
 /**
  * @author Nicolas Dutertry
@@ -68,10 +71,11 @@ public class TunnelClient implements Runnable {
     private final String proxy;
     private final int bufferSize;
     private final boolean base64Encoding;
+    private final PrivateKey privateKey;
     
     private String connectionId;
     
-    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy, int bufferSize, boolean base64Encoding) {
+    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy, int bufferSize, boolean base64Encoding, PrivateKey privateKey) {
         this.socketChannel = socketChannel;
         this.host = host;
         this.port = port;
@@ -79,6 +83,7 @@ public class TunnelClient implements Runnable {
         this.proxy = proxy;
         this.bufferSize = bufferSize;
         this.base64Encoding = base64Encoding;
+        this.privateKey = privateKey;
     }
     
     public CloseableHttpClient createHttpCLient() throws URISyntaxException {
@@ -109,6 +114,20 @@ public class TunnelClient implements Runnable {
     public void run() {
         LOGGER.info("Connecting to tunnel {}", tunnel);
         try(CloseableHttpClient httpclient = createHttpCLient()) {
+            // Hello
+            URI helloUri = new URIBuilder(tunnel)
+                    .setPath("/hello")
+                    .build();
+            String helloResult;
+            try(CloseableHttpResponse response = httpclient.execute(new HttpGet(helloUri))) {
+                if(response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                    LOGGER.error("Error while connecting tunnel: {}", response.getStatusLine());
+                    return;
+                }
+                helloResult = EntityUtils.toString(response.getEntity());
+            }
+            
+            // Connect
             URI connectUri = new URIBuilder(tunnel)
                     .setPath("/connect")
                     .build();
@@ -119,12 +138,22 @@ public class TunnelClient implements Runnable {
             connectionConfig.setBufferSize(bufferSize);
             connectionConfig.setBase64Encoding(base64Encoding);
             
+            ConnectionRequest connectionRequest = new ConnectionRequest();
+            connectionRequest.setHelloResult(helloResult);
+            connectionRequest.setConnectionConfig(connectionConfig);            
+            
             ObjectMapper mapper = new ObjectMapper();
-            mapper.writeValueAsString(connectionConfig);
+            byte[] connectionRequestBytes = mapper.writeValueAsBytes(connectionRequest);
+            byte[] sendBytes = connectionRequestBytes;
+            if(privateKey != null) {
+                Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+                cipher.init(Cipher.ENCRYPT_MODE, privateKey);
+                byte[] crypted = cipher.doFinal(connectionRequestBytes);
+                sendBytes = Base64.getEncoder().encode(crypted);
+            }
+            
             HttpPost httppost = new HttpPost(connectUri);
-            httppost.setEntity(new StringEntity(
-                    mapper.writeValueAsString(connectionConfig),
-                    ContentType.APPLICATION_JSON));
+            httppost.setEntity(new ByteArrayEntity(sendBytes));
             
             try(CloseableHttpResponse response = httpclient.execute(httppost)) {
                 if(response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
@@ -138,6 +167,13 @@ public class TunnelClient implements Runnable {
         } catch(Exception e) {
             LOGGER.error("Error while connecting to tunnel", e);
             return;
+        } finally {
+            if(connectionId == null) {
+                try {
+                    socketChannel.close();
+                } catch (IOException e) {
+                }
+            }
         }
             
         Thread writeThread = new Thread(() -> this.writeLoop());

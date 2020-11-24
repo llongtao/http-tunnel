@@ -21,6 +21,7 @@ package com.dutertry.htunnel.server.controller;
 
 import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
 
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -28,19 +29,32 @@ import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.annotation.PostConstruct;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -51,6 +65,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.dutertry.htunnel.common.ConnectionConfig;
+import com.dutertry.htunnel.common.ConnectionRequest;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author Nicolas Dutertry
@@ -60,16 +76,57 @@ import com.dutertry.htunnel.common.ConnectionConfig;
 public class TunnelController {
     private static final Logger LOGGER = LoggerFactory.getLogger(TunnelController.class);
     
-    private static final int BUFFER_SIZE = 1024;
     private static final long READ_WAIT_TIME = 10000L;
+    
+    @Value("${public-key:}")
+    private String publicKeyPath;
+    
+    private PublicKey publicKey;
     
     private final Map<String , ClientConnection> connections = new ConcurrentHashMap<>();
     
-    @RequestMapping(value = "/connect", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostConstruct
+    public void init() throws IOException {
+        if(StringUtils.isNotBlank(publicKeyPath)) {
+            LOGGER.info("Using public key {} for connection certification", publicKeyPath);
+            SubjectPublicKeyInfo subjectPublicKeyInfo;
+            try(FileReader reader = new FileReader(publicKeyPath);
+                    PEMParser pemParser = new PEMParser(reader)) {
+                subjectPublicKeyInfo = SubjectPublicKeyInfo.getInstance(pemParser.readObject());
+            }
+            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+            publicKey = converter.getPublicKey(subjectPublicKeyInfo);
+        }
+    }
+    
+    @RequestMapping(value = "/hello", method = RequestMethod.GET)
+    public String hello() throws IOException {
+        return LocalDateTime.now().toString();
+    }
+    
+    @RequestMapping(value = "/connect", method = RequestMethod.POST)
     public String connection(
             HttpServletRequest request,
-            @RequestBody ConnectionConfig connectionConfig) throws IOException {
+            @RequestBody byte[] connectionRequestBytes) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         
+        byte[] decrypted = connectionRequestBytes;
+        if(publicKey != null) {
+            byte[] crypted = Base64.getDecoder().decode(connectionRequestBytes);
+            Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            cipher.init(Cipher.DECRYPT_MODE, publicKey);
+            decrypted = cipher.doFinal(crypted);
+        }
+        
+        ObjectMapper mapper = new ObjectMapper();
+        ConnectionRequest connectionRequest = mapper.readValue(decrypted, ConnectionRequest.class);
+        
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime helloDateTime = LocalDateTime.parse(connectionRequest.getHelloResult());
+        if(helloDateTime.until(now, ChronoUnit.SECONDS) > 300) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN); 
+        }
+        
+        ConnectionConfig connectionConfig = connectionRequest.getConnectionConfig();
         String ipAddress = request.getRemoteAddr();
         String host = connectionConfig.getHost();
         int port = connectionConfig.getPort();

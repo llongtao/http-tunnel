@@ -19,15 +19,20 @@
  */
 package com.dutertry.htunnel.client;
 
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.security.PrivateKey;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,10 +64,26 @@ public class ClientListener implements Runnable {
     @Value("${base64:false}")
     private boolean base64Encoding;
     
+    @Value("${private-key:}")
+    private String privateKeyPath;
+    
+    private PrivateKey privateKey;
+    
     private Thread thread;
     
     @PostConstruct
     public void start() throws IOException {
+        if(StringUtils.isNotBlank(privateKeyPath)) {
+            LOGGER.info("Using private key {} for connections", privateKeyPath);
+            PrivateKeyInfo privateKeyInfo;
+            try(FileReader reader = new FileReader(privateKeyPath);
+                    PEMParser pemParser = new PEMParser(reader)) {
+                privateKeyInfo = PrivateKeyInfo.getInstance(pemParser.readObject());
+            }
+            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+            privateKey = converter.getPrivateKey(privateKeyInfo);
+        }
+        
         LOGGER.info("Starting listener thread");
         thread = new Thread(this);
         thread.start();
@@ -85,7 +106,8 @@ public class ClientListener implements Runnable {
                         tunnel,
                         proxy,
                         bufferSize,
-                        base64Encoding);
+                        base64Encoding,
+                        privateKey);
                 Thread thread = new Thread(tunnelClient);
                 thread.setDaemon(true);
                 thread.start();
