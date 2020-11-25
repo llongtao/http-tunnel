@@ -19,7 +19,8 @@
  */
 package com.dutertry.htunnel.server.controller;
 
-import static com.dutertry.htunnel.common.Constants.*;
+import static com.dutertry.htunnel.common.Constants.CRYPT_ALG;
+import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -33,10 +34,6 @@ import java.security.PublicKey;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.PostConstruct;
 import javax.crypto.Cipher;
@@ -49,6 +46,7 @@ import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -60,6 +58,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.dutertry.htunnel.common.ConnectionConfig;
 import com.dutertry.htunnel.common.ConnectionRequest;
+import com.dutertry.htunnel.server.connection.ClientConnection;
+import com.dutertry.htunnel.server.connection.ClientConnectionManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -72,12 +72,13 @@ public class TunnelController {
     
     private static final long READ_WAIT_TIME = 10000L;
     
+    @Autowired
+    private ClientConnectionManager clientConnectionManager;
+    
     @Value("${public-key:}")
     private String publicKeyPath;
     
     private PublicKey publicKey;
-    
-    private final Map<String , ClientConnection> connections = new ConcurrentHashMap<>();
     
     @PostConstruct
     public void init() throws IOException {
@@ -145,11 +146,7 @@ public class TunnelController {
         socketChannel.connect(socketAddr);
         socketChannel.configureBlocking(false);
         
-        String connectionId = UUID.randomUUID().toString();
-        
-        connections.put(connectionId, new ClientConnection(connectionId, ipAddress, connectionConfig, LocalDateTime.now(), socketChannel));
-        
-        return connectionId;
+        return clientConnectionManager.createConnection(ipAddress, connectionConfig, socketChannel);
     }
 
     @RequestMapping(value = "/write", method = RequestMethod.POST)
@@ -243,29 +240,7 @@ public class TunnelController {
         
         socketChannel.close();
         
-        connections.remove(connectionId);
-    }
-    
-    @RequestMapping(value = "/clean", method = RequestMethod.GET)
-    public String clean() {
-        LOGGER.info("Cleaning connections");
-        int closed = 0;
-        int error = 0;
-        Iterator<Map.Entry<String, ClientConnection>> it = connections.entrySet().iterator();
-        while(it.hasNext()) {
-            Map.Entry<String, ClientConnection> entry = it.next();
-            closed++;
-            try {
-                entry.getValue().getSocketChannel().close();
-            } catch(Exception e) {
-                LOGGER.error("Error while cleaning connections", e);
-                error++;
-            }
-            it.remove();
-        }
-        
-        return closed + " connection(s) closed (" + error + " with error)";
-
+        clientConnectionManager.removeConnection(connectionId);
     }
 
     @RequestMapping(value = "/", method = RequestMethod.GET)
@@ -275,7 +250,7 @@ public class TunnelController {
     }
     
     private ClientConnection getConnection(String ipAddress, String connectionId) {
-        ClientConnection connection = connections.get(connectionId);
+        ClientConnection connection = clientConnectionManager.getConnection(connectionId);
         if(connection == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unable to find connection");
         }

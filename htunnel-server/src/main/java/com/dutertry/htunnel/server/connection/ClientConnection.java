@@ -17,7 +17,7 @@
  * limitations under the License.
  * 
  */
-package com.dutertry.htunnel.server.controller;
+package com.dutertry.htunnel.server.connection;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -42,7 +42,7 @@ public class ClientConnection {
     
     private final ByteBuffer readBuffer;
     
-    public ClientConnection(String id, String ipAddress, ConnectionConfig connectionConfig, LocalDateTime creationDateTime, SocketChannel socketChannel) {
+    ClientConnection(String id, String ipAddress, ConnectionConfig connectionConfig, LocalDateTime creationDateTime, SocketChannel socketChannel) {
         super();
         this.id = id;
         this.ipAddress = ipAddress;
