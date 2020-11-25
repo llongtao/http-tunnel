@@ -69,6 +69,9 @@ public class ClientListener implements Runnable {
     
     private PrivateKey privateKey;
     
+    @Value("${single:false}")
+    private boolean single;
+    
     private Thread thread;
     
     @PostConstruct
@@ -93,8 +96,8 @@ public class ClientListener implements Runnable {
         String targetHost = StringUtils.substringBeforeLast(target, ":");
         int targetPort = Integer.parseInt(StringUtils.substringAfterLast(target, ":"));
         try(ServerSocketChannel ssc = ServerSocketChannel.open()) {
-            ssc.socket().bind(new InetSocketAddress(port));
-            LOGGER.info("Waiting for connection on port " + port);
+            ssc.socket().bind(new InetSocketAddress("localhost", port));
+            LOGGER.info("Waiting for connection on port {}", port);
         
             while(!Thread.currentThread().isInterrupted()) {
                 SocketChannel socketChannel = ssc.accept();
@@ -109,10 +112,13 @@ public class ClientListener implements Runnable {
                         base64Encoding,
                         privateKey);
                 Thread thread = new Thread(tunnelClient);
-                thread.setDaemon(true);
                 thread.start();
+                
+                if(single) {
+                    break;
+                }
             }
-        }catch(IOException e) {
+        } catch(IOException e) {
             LOGGER.error("Error in listener loop", e);
         }
         LOGGER.info("Listener thread terminated");
