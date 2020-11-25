@@ -19,7 +19,7 @@
  */
 package com.dutertry.htunnel.server.controller;
 
-import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
+import static com.dutertry.htunnel.common.Constants.*;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -29,8 +29,6 @@ import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -41,10 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.PostConstruct;
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -99,34 +94,45 @@ public class TunnelController {
     }
     
     @RequestMapping(value = "/hello", method = RequestMethod.GET)
-    public String hello() throws IOException {
-        return LocalDateTime.now().toString();
+    public String hello(HttpServletRequest request) {
+        String ipAddress = request.getRemoteAddr();
+        return ipAddress + "/" + LocalDateTime.now().toString();
     }
     
     @RequestMapping(value = "/connect", method = RequestMethod.POST)
     public String connection(
             HttpServletRequest request,
-            @RequestBody byte[] connectionRequestBytes) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+            @RequestBody byte[] connectionRequestBytes) throws IOException {
         
         byte[] decrypted = connectionRequestBytes;
         if(publicKey != null) {
-            byte[] crypted = Base64.getDecoder().decode(connectionRequestBytes);
-            Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            cipher.init(Cipher.DECRYPT_MODE, publicKey);
-            decrypted = cipher.doFinal(crypted);
+            try {
+                byte[] crypted = Base64.getDecoder().decode(connectionRequestBytes);
+                Cipher cipher = Cipher.getInstance(CRYPT_ALG);
+                cipher.init(Cipher.DECRYPT_MODE, publicKey);
+                decrypted = cipher.doFinal(crypted);
+            } catch(Exception e) {
+                LOGGER.info("Unable to decrypt connection request: {}", e.toString());
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+            }
         }
         
         ObjectMapper mapper = new ObjectMapper();
         ConnectionRequest connectionRequest = mapper.readValue(decrypted, ConnectionRequest.class);
         
+        String ipAddress = request.getRemoteAddr();
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime helloDateTime = LocalDateTime.parse(connectionRequest.getHelloResult());
+        String helloResult = connectionRequest.getHelloResult();
+        String helloIp = StringUtils.substringBefore(helloResult, "/");
+        if(!ipAddress.equals(helloIp)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        LocalDateTime helloDateTime = LocalDateTime.parse(StringUtils.substringAfter(helloResult, "/"));
         if(helloDateTime.until(now, ChronoUnit.SECONDS) > 300) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN); 
         }
         
-        ConnectionConfig connectionConfig = connectionRequest.getConnectionConfig();
-        String ipAddress = request.getRemoteAddr();
+        ConnectionConfig connectionConfig = connectionRequest.getConnectionConfig();        
         String host = connectionConfig.getHost();
         int port = connectionConfig.getPort();
         LOGGER.info("New connection received from {} for target {}:{}",
@@ -211,7 +217,7 @@ public class TunnelController {
                     return bytes;
                 } else {
                     if(read == -1) {
-                        throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "EOF reached");
+                        throw new ResponseStatusException(HttpStatus.GONE, "EOF reached");
                     }
                     
                     long now = System.currentTimeMillis();

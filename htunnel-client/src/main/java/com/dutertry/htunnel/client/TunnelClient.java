@@ -19,7 +19,7 @@
  */
 package com.dutertry.htunnel.client;
 
-import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
+import static com.dutertry.htunnel.common.Constants.*;
 
 import java.io.IOException;
 import java.net.URI;
@@ -146,7 +146,7 @@ public class TunnelClient implements Runnable {
             byte[] connectionRequestBytes = mapper.writeValueAsBytes(connectionRequest);
             byte[] sendBytes = connectionRequestBytes;
             if(privateKey != null) {
-                Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+                Cipher cipher = Cipher.getInstance(CRYPT_ALG);
                 cipher.init(Cipher.ENCRYPT_MODE, privateKey);
                 byte[] crypted = cipher.doFinal(connectionRequestBytes);
                 sendBytes = Base64.getEncoder().encode(crypted);
@@ -192,7 +192,13 @@ public class TunnelClient implements Runnable {
                 HttpGet httpget = new HttpGet(readUri);
                 httpget.addHeader(HEADER_CONNECTION_ID, connectionId);
                 try(CloseableHttpResponse response = httpclient.execute(httpget)) {
-                    if(response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                    int status = response.getStatusLine().getStatusCode();
+                    if(status == HttpStatus.SC_GONE) {
+                        LOGGER.info("Connection closed by server");
+                        break;
+                    }
+                    
+                    if(status != HttpStatus.SC_OK) {
                         LOGGER.error("Error while reading: {}", response.getStatusLine());
                         break;
                     }
