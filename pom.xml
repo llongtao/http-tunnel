@@ -34,6 +34,17 @@
         </dependencies>
     </dependencyManagement>
     
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <artifactId>maven-release-plugin</artifactId>
+                    <version>2.5.3</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+    
     <modules>
         <module>htunnel-common</module>
         <module>htunnel-client</module>
@@ -46,6 +57,14 @@
         <url>https://github.com/nicolas-dutertry/htunnel</url>
         <tag>HEAD</tag>
     </scm>
+    
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub nicolas-dutertry Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/nicolas-dutertry/htunnel</url>
+        </repository>
+    </distributionManagement>
     
     <developers>
         <developer>
