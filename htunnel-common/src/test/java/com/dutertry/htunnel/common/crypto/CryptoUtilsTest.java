@@ -11,14 +11,14 @@ import org.junit.Test;
 public class CryptoUtilsTest {
     @Test
     public void testEncryption() throws GeneralSecurityException {
-        SecretKey key = CryptoUtils.generateKey();
+        SecretKey key = CryptoUtils.generateAESKey();
         
         String s = "Hello World";
-        byte[] encrypted = CryptoUtils.encrypt(s.getBytes(), key);
+        byte[] encrypted = CryptoUtils.encryptAES(s.getBytes(), key);
         
-        String encodedKey = CryptoUtils.encodeKey(key);
-        key = CryptoUtils.decodeKey(encodedKey);
-        byte[] decrypted = CryptoUtils.decrypt(encrypted, key);
+        String encodedKey = CryptoUtils.encodeAESKey(key);
+        key = CryptoUtils.decodeAESKey(encodedKey);
+        byte[] decrypted = CryptoUtils.decryptAES(encrypted, key);
         
         Assert.assertEquals(s, new String(decrypted));  
     }

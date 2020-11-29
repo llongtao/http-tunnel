@@ -19,7 +19,7 @@
  */
 package com.dutertry.htunnel.client;
 
-import static com.dutertry.htunnel.common.Constants.*;
+import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
 
 import java.io.IOException;
 import java.net.URI;
@@ -29,8 +29,6 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.util.Base64;
-
-import javax.crypto.Cipher;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHost;
@@ -55,6 +53,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dutertry.htunnel.common.ConnectionConfig;
 import com.dutertry.htunnel.common.ConnectionRequest;
+import com.dutertry.htunnel.common.crypto.CryptoUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -146,10 +145,7 @@ public class TunnelClient implements Runnable {
             byte[] connectionRequestBytes = mapper.writeValueAsBytes(connectionRequest);
             byte[] sendBytes = connectionRequestBytes;
             if(privateKey != null) {
-                Cipher cipher = Cipher.getInstance(CRYPT_ALG);
-                cipher.init(Cipher.ENCRYPT_MODE, privateKey);
-                byte[] crypted = cipher.doFinal(connectionRequestBytes);
-                sendBytes = Base64.getEncoder().encode(crypted);
+                sendBytes = CryptoUtils.encryptRSA(connectionRequestBytes, privateKey);
             }
             
             HttpPost httppost = new HttpPost(connectUri);

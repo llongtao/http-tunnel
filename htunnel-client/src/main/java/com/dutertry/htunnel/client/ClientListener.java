@@ -19,7 +19,6 @@
  */
 package com.dutertry.htunnel.client;
 
-import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
@@ -30,13 +29,12 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import org.apache.commons.lang3.StringUtils;
-import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
+
+import com.dutertry.htunnel.common.crypto.CryptoUtils;
 
 /**
  * @author Nicolas Dutertry
@@ -78,13 +76,7 @@ public class ClientListener implements Runnable {
     public void start() throws IOException {
         if(StringUtils.isNotBlank(privateKeyPath)) {
             LOGGER.info("Using private key {} for connections", privateKeyPath);
-            PrivateKeyInfo privateKeyInfo;
-            try(FileReader reader = new FileReader(privateKeyPath);
-                    PEMParser pemParser = new PEMParser(reader)) {
-                privateKeyInfo = PrivateKeyInfo.getInstance(pemParser.readObject());
-            }
-            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
-            privateKey = converter.getPrivateKey(privateKeyInfo);
+            privateKey = CryptoUtils.readRSAPrivateKey(privateKeyPath);
         }
         
         LOGGER.info("Starting listener thread");

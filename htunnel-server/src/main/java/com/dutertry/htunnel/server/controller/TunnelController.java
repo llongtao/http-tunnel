@@ -19,10 +19,8 @@
  */
 package com.dutertry.htunnel.server.controller;
 
-import static com.dutertry.htunnel.common.Constants.CRYPT_ALG;
 import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
 
-import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -36,14 +34,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 
 import javax.annotation.PostConstruct;
-import javax.crypto.Cipher;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang3.StringUtils;
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +52,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.dutertry.htunnel.common.ConnectionConfig;
 import com.dutertry.htunnel.common.ConnectionRequest;
+import com.dutertry.htunnel.common.crypto.CryptoUtils;
 import com.dutertry.htunnel.server.connection.ClientConnection;
 import com.dutertry.htunnel.server.connection.ClientConnectionManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -84,13 +79,7 @@ public class TunnelController {
     public void init() throws IOException {
         if(StringUtils.isNotBlank(publicKeyPath)) {
             LOGGER.info("Using public key {} for connection certification", publicKeyPath);
-            SubjectPublicKeyInfo subjectPublicKeyInfo;
-            try(FileReader reader = new FileReader(publicKeyPath);
-                    PEMParser pemParser = new PEMParser(reader)) {
-                subjectPublicKeyInfo = SubjectPublicKeyInfo.getInstance(pemParser.readObject());
-            }
-            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
-            publicKey = converter.getPublicKey(subjectPublicKeyInfo);
+            publicKey = CryptoUtils.readRSAPublicKey(publicKeyPath);
         }
     }
     
@@ -108,10 +97,7 @@ public class TunnelController {
         byte[] decrypted = connectionRequestBytes;
         if(publicKey != null) {
             try {
-                byte[] crypted = Base64.getDecoder().decode(connectionRequestBytes);
-                Cipher cipher = Cipher.getInstance(CRYPT_ALG);
-                cipher.init(Cipher.DECRYPT_MODE, publicKey);
-                decrypted = cipher.doFinal(crypted);
+                decrypted = CryptoUtils.decryptRSA(connectionRequestBytes, publicKey);
             } catch(Exception e) {
                 LOGGER.info("Unable to decrypt connection request: {}", e.toString());
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
