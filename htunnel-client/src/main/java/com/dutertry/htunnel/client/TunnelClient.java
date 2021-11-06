@@ -172,7 +172,7 @@ public class TunnelClient implements Runnable {
             }
         }
             
-        Thread writeThread = new Thread(() -> this.writeLoop());
+        Thread writeThread = new Thread(this::writeLoop);
         writeThread.setDaemon(true);
         writeThread.start();
         

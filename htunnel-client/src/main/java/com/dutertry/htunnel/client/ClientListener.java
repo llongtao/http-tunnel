@@ -25,38 +25,27 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.PrivateKey;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-
+import com.dutertry.htunnel.client.config.Tunnel;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Controller;
-
-import com.dutertry.htunnel.common.crypto.CryptoUtils;
 
 /**
  * @author Nicolas Dutertry
  *
  */
-@Controller
 public class ClientListener implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientListener.class);
-    
-    @Value("${port:3000}")
+
     private int port;
-    
-    @Value("${target}")
+
     private String target;
-    
-    @Value("${tunnel}")
-    private String tunnel;
-    
-    @Value("${proxy:}")
+
+    private String server;
+
     private String proxy;
-    
-    @Value("${buffer.size:1048576}")
+
     private int bufferSize;
     
     @Value("${base64:false}")
@@ -70,18 +59,15 @@ public class ClientListener implements Runnable {
     @Value("${single:false}")
     private boolean single;
     
-    private Thread thread;
-    
-    @PostConstruct
-    public void start() throws IOException {
-        if(StringUtils.isNotBlank(privateKeyPath)) {
-            LOGGER.info("Using private key {} for connections", privateKeyPath);
-            privateKey = CryptoUtils.readRSAPrivateKey(privateKeyPath);
-        }
-        
-        LOGGER.info("Starting listener thread");
-        thread = new Thread(this);
-        thread.start();
+
+    public  ClientListener(Tunnel tunnel,PrivateKey privateKey,boolean base64Encoding)  {
+        this.port = tunnel.getPort();
+        this.target = tunnel.getTarget();
+        this.server = tunnel.getServer();
+        this.proxy = tunnel.getProxy();
+        this.bufferSize = tunnel.getBufferSize();
+        this.privateKey = privateKey;
+        this.base64Encoding = base64Encoding;
     }
     
     public void run() {
@@ -98,7 +84,7 @@ public class ClientListener implements Runnable {
                 
                 TunnelClient tunnelClient = new TunnelClient(socketChannel,
                         targetHost, targetPort,
-                        tunnel,
+                        server,
                         proxy,
                         bufferSize,
                         base64Encoding,
@@ -116,10 +102,5 @@ public class ClientListener implements Runnable {
         LOGGER.info("Listener thread terminated");
     }
     
-    @PreDestroy
-    public void destroy() throws IOException {
-        LOGGER.info("Destroying listener");
-        thread.interrupt();
-        thread = null;
-    }
+
 }

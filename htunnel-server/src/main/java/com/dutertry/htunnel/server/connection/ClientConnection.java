@@ -37,6 +37,8 @@ public class ClientConnection {
     private ConnectionConfig connectionConfig;
     
     private final LocalDateTime creationDateTime;
+
+    private LocalDateTime lastUseTime;
     
     private final SocketChannel socketChannel;
     
@@ -48,6 +50,7 @@ public class ClientConnection {
         this.ipAddress = ipAddress;
         this.connectionConfig = connectionConfig;
         this.creationDateTime = creationDateTime;
+        this.lastUseTime = creationDateTime;
         this.socketChannel = socketChannel;
         this.readBuffer = ByteBuffer.allocate(connectionConfig.getBufferSize());
     }
@@ -72,11 +75,19 @@ public class ClientConnection {
         return creationDateTime;
     }
 
+    public LocalDateTime getLastUseTime() {
+        return lastUseTime;
+    }
+
     public SocketChannel getSocketChannel() {
         return socketChannel;
     }
 
     public ByteBuffer getReadBuffer() {
         return readBuffer;
+    }
+
+    public void updateUseTime(){
+        lastUseTime = LocalDateTime.now();
     }
 }

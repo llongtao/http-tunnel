@@ -1,21 +1,21 @@
 /*
- * htunnel - A simple HTTP tunnel 
+ * htunnel - A simple HTTP tunnel
  * https://github.com/nicolas-dutertry/htunnel
- * 
+ *
  * Written by Nicolas Dutertry.
- * 
+ *
  * This file is provided under the Apache License, Version 2.0
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
- * 
+ *
  *    http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  */
 package com.dutertry.htunnel.server.connection;
 
@@ -36,61 +36,65 @@ import com.dutertry.htunnel.common.ConnectionConfig;
 
 /**
  * @author Nicolas Dutertry
- *
  */
 @Component
 public class ClientConnectionManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientConnectionManager.class);
-    private static int MAX_CONNECTION_DURATION_HOUR = 8;
-    
-    private final Map<String , ClientConnection> connections = new ConcurrentHashMap<>();
-    
+
+
+    private final Map<String, ClientConnection> connections = new ConcurrentHashMap<>();
+
     public String createConnection(String ipAddress, ConnectionConfig connectionConfig, SocketChannel socketChannel) {
         String connectionId = UUID.randomUUID().toString();
-        
+
         connections.put(connectionId, new ClientConnection(connectionId, ipAddress, connectionConfig, LocalDateTime.now(), socketChannel));
-        
+
         return connectionId;
     }
-    
+
     public ClientConnection getConnection(String connectionId) {
         return connections.get(connectionId);
     }
-    
+
     public void removeConnection(String connectionId) {
         connections.remove(connectionId);
     }
-    
-    private void cleanConnections(LocalDateTime minCreationDateTime) {
-        LOGGER.debug("Cleaning connections created before {}", minCreationDateTime);
+
+    private void cleanConnections(LocalDateTime minSleepTime) {
+        LOGGER.info("Cleaning connections  active before {}", minSleepTime);
         int closed = 0;
         int error = 0;
         Iterator<Map.Entry<String, ClientConnection>> it = connections.entrySet().iterator();
-        while(it.hasNext()) {
+        while (it.hasNext()) {
             Map.Entry<String, ClientConnection> entry = it.next();
             ClientConnection connection = entry.getValue();
-            if(connection.getCreationDateTime().isBefore(minCreationDateTime)) {
+            if (connection.getLastUseTime().isBefore(minSleepTime)) {
                 closed++;
                 try {
                     connection.getSocketChannel().close();
-                } catch(Exception e) {
+                } catch (Exception e) {
                     LOGGER.error("Error while cleaning connections", e);
                     error++;
                 }
                 it.remove();
             }
         }
-        LOGGER.debug("{} connection(s) closed ({} with error)", closed, error);
+        LOGGER.info("{} connection(s) closed ({} with error)", closed, error);
     }
-    
+
     @PostConstruct
     public void init() {
-        Thread cleaner = new Thread(() ->  {
-            cleanConnections(LocalDateTime.now().minusHours(MAX_CONNECTION_DURATION_HOUR));
-            try {
-                Thread.sleep(600_000L);
-            } catch(InterruptedException e) {
-                LOGGER.error("Cleaner thread interrupted", e);
+        Thread cleaner = new Thread(() -> {
+            while (true) {
+                LocalDateTime now = LocalDateTime.now();
+                cleanConnections(now.minusSeconds(600));
+                LOGGER.info("active connection {}", connections.size());
+                try {
+                    //noinspection BusyWait
+                    Thread.sleep(60_000L);
+                } catch (InterruptedException e) {
+                    LOGGER.error("Cleaner thread interrupted", e);
+                }
             }
         });
         cleaner.setDaemon(true);

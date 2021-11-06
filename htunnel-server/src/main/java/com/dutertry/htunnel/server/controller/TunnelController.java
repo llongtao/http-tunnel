@@ -71,15 +71,15 @@ public class TunnelController {
     private ClientConnectionManager clientConnectionManager;
     
     @Value("${public-key:}")
-    private String publicKeyPath;
+    private String publicKeyStr;
     
     private PublicKey publicKey;
     
     @PostConstruct
     public void init() throws IOException {
-        if(StringUtils.isNotBlank(publicKeyPath)) {
-            LOGGER.info("Using public key {} for connection certification", publicKeyPath);
-            publicKey = CryptoUtils.readRSAPublicKey(publicKeyPath);
+        if(StringUtils.isNotBlank(publicKeyStr)) {
+            LOGGER.info("Using public key {} for connection certification", publicKeyStr);
+            publicKey = CryptoUtils.readRSAPublicKey(publicKeyStr);
         }
     }
     
@@ -152,7 +152,7 @@ public class TunnelController {
         if(connection.getConnectionConfig().isBase64Encoding()) {
             bytes = Base64.getDecoder().decode(body);
         }
-        
+        connection.updateUseTime();
         if(bytes.length > 0) {
             ByteBuffer bb = ByteBuffer.wrap(bytes);
             while(bb.hasRemaining()) {
@@ -177,6 +177,9 @@ public class TunnelController {
         bb.clear();
         
         long startTime  = System.currentTimeMillis();
+
+        connection.updateUseTime();
+
         while(true) {
             int read;
             try {

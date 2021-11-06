@@ -26,7 +26,7 @@ import lombok.Data;
  *
  */
 @Data
-public class ConnectionConfig {
+public class  ConnectionConfig {
     
     private String host;
     
