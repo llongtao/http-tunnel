@@ -111,7 +111,7 @@ public class TunnelController {
                 helloResult = new String(bytes);
             } catch(Exception e) {
                 LOGGER.info("Unable to decrypt connection request: {}", e.toString());
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
             }
         }
         String[] split = helloResult.split("/");
