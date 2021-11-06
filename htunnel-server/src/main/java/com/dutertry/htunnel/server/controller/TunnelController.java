@@ -28,15 +28,18 @@ import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Objects;
 
 import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.dutertry.htunnel.common.Constants;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,35 +89,44 @@ public class TunnelController {
     @RequestMapping(value = "/hello", method = RequestMethod.GET)
     public String hello(HttpServletRequest request) {
         String ipAddress = request.getRemoteAddr();
-        return ipAddress + "/" + LocalDateTime.now().toString();
+        return ipAddress + "/" + LocalDateTime.now()+"/"+ Constants.CRT;
     }
     
     @RequestMapping(value = "/connect", method = RequestMethod.POST)
     public String connection(
             HttpServletRequest request,
             @RequestBody byte[] connectionRequestBytes) throws IOException {
+
         
-        byte[] decrypted = connectionRequestBytes;
+        ObjectMapper mapper = new ObjectMapper();
+        ConnectionRequest connectionRequest = mapper.readValue(connectionRequestBytes, ConnectionRequest.class);
+        
+        String ipAddress = request.getRemoteAddr();
+        LocalDateTime now = LocalDateTime.now();
+        String helloResult = connectionRequest.getHelloResult();
+
         if(publicKey != null) {
             try {
-                decrypted = CryptoUtils.decryptRSA(connectionRequestBytes, publicKey);
+                byte[] bytes = CryptoUtils.decryptRSA(helloResult.getBytes(StandardCharsets.UTF_8), publicKey);
+                helloResult = new String(bytes);
             } catch(Exception e) {
                 LOGGER.info("Unable to decrypt connection request: {}", e.toString());
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
             }
         }
-        
-        ObjectMapper mapper = new ObjectMapper();
-        ConnectionRequest connectionRequest = mapper.readValue(decrypted, ConnectionRequest.class);
-        
-        String ipAddress = request.getRemoteAddr();
-        LocalDateTime now = LocalDateTime.now();
-        String helloResult = connectionRequest.getHelloResult();
-        String helloIp = StringUtils.substringBefore(helloResult, "/");
+        String[] split = helloResult.split("/");
+
+        String helloIp = split[0];
+        String helloDateTimeStr = split[1];
+        String crt = split[2];
+
+        if (!Objects.equals(crt,Constants.CRT)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
         if(!ipAddress.equals(helloIp)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        LocalDateTime helloDateTime = LocalDateTime.parse(StringUtils.substringAfter(helloResult, "/"));
+        LocalDateTime helloDateTime = LocalDateTime.parse(helloDateTimeStr);
         if(helloDateTime.until(now, ChronoUnit.SECONDS) > 300) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN); 
         }
@@ -126,6 +138,7 @@ public class TunnelController {
                 ipAddress, host, port);
         LOGGER.info("Buffer size is {}", connectionConfig.getBufferSize());
         LOGGER.info("Base64 encoding is {}", connectionConfig.isBase64Encoding());
+
         
         SocketChannel socketChannel = SocketChannel.open();
         SocketAddress socketAddr = new InetSocketAddress(host, port);

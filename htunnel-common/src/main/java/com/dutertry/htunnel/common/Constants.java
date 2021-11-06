@@ -25,4 +25,6 @@ package com.dutertry.htunnel.common;
  */
 public class Constants {
     public static final String HEADER_CONNECTION_ID = "X-HTUNNEL-ID";
+
+    public static final String CRT = "ORxLWo^BR5$BKKqGBVqu050B#RzLfPAQ";
 }

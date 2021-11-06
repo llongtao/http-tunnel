@@ -125,6 +125,10 @@ public class TunnelClient implements Runnable {
                 }
                 helloResult = EntityUtils.toString(response.getEntity());
             }
+
+            if(privateKey != null) {
+                helloResult = new String(CryptoUtils.encryptRSA(helloResult.getBytes(StandardCharsets.UTF_8), privateKey));
+            }
             
             // Connect
             URI connectUri = new URIBuilder(tunnel)
@@ -142,11 +146,8 @@ public class TunnelClient implements Runnable {
             connectionRequest.setConnectionConfig(connectionConfig);            
             
             ObjectMapper mapper = new ObjectMapper();
-            byte[] connectionRequestBytes = mapper.writeValueAsBytes(connectionRequest);
-            byte[] sendBytes = connectionRequestBytes;
-            if(privateKey != null) {
-                sendBytes = CryptoUtils.encryptRSA(connectionRequestBytes, privateKey);
-            }
+            byte[] sendBytes = mapper.writeValueAsBytes(connectionRequest);
+
             
             HttpPost httppost = new HttpPost(connectUri);
             httppost.setEntity(new ByteArrayEntity(sendBytes));
