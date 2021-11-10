@@ -233,7 +233,7 @@ public class TunnelClient implements Runnable {
             
             while(!Thread.currentThread().isInterrupted()) {
                 int read = socketChannel.read(bb);
-                
+
                 if(!bb.hasRemaining() || read <= 0) {
                     if(bb.position() > 0) {
                         URI writeUri = new URIBuilder(tunnel)
@@ -265,6 +265,12 @@ public class TunnelClient implements Runnable {
                             
                             EntityUtils.consume(response.getEntity());
                         }
+
+                    }else {
+                        try{
+                            Thread.sleep(100);
+                        }catch (Exception ignore){}
+
                     }
                 }
                 
