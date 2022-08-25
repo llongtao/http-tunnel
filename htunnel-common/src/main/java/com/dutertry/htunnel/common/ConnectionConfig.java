@@ -35,4 +35,7 @@ public class  ConnectionConfig {
     private int bufferSize;
     
     private boolean base64Encoding;
+
+    private String username;
+    private String password;
 }

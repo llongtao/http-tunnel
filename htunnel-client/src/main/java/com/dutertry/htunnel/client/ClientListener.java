@@ -47,6 +47,10 @@ public class ClientListener implements Runnable {
 
     private int bufferSize;
 
+    private String username;
+
+    private String password;
+
     @Value("${base64:false}")
     private boolean base64Encoding;
 
@@ -59,7 +63,7 @@ public class ClientListener implements Runnable {
     private boolean single;
 
 
-    public ClientListener(Tunnel tunnel, PrivateKey privateKey, boolean base64Encoding) {
+    public ClientListener(Tunnel tunnel, PrivateKey privateKey, boolean base64Encoding,String username,String password) {
         this.port = tunnel.getPort();
         this.target = tunnel.getTarget();
         this.server = tunnel.getServer();
@@ -67,6 +71,9 @@ public class ClientListener implements Runnable {
         this.bufferSize = tunnel.getBufferSize();
         this.privateKey = privateKey;
         this.base64Encoding = base64Encoding;
+        this.username=username;
+        this.password=password;
+
     }
 
     public void run() {
@@ -87,7 +94,9 @@ public class ClientListener implements Runnable {
                         proxy,
                         bufferSize,
                         base64Encoding,
-                        privateKey);
+                        privateKey,
+                        username,
+                        password);
                 Thread thread = new Thread(tunnelClient);
                 thread.start();
 

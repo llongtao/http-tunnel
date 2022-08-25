@@ -58,8 +58,10 @@ public class ClientApp implements ApplicationRunner {
         PrivateKey privateKey = tunnelProperties.getPrivateKey();
         boolean base64Encoding = tunnelProperties.isBase64Encoding();
         List<Tunnel> tunnels = tunnelProperties.getTunnels();
+        String username = tunnelProperties.getUsername();
+        String password = tunnelProperties.getPassword();
         tunnels.forEach(tunnel -> {
-            Thread thread = new Thread(new ClientListener(tunnel, privateKey, base64Encoding));
+            Thread thread = new Thread(new ClientListener(tunnel, privateKey, base64Encoding,username,password));
             threadList.add(thread);
             thread.start();
         });

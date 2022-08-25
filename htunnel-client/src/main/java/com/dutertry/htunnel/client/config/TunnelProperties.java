@@ -15,6 +15,10 @@ import java.util.List;
 @ConfigurationProperties(prefix = "tunnel")
 public class TunnelProperties {
 
+    private String username;
+
+    private String password;
+
     private boolean base64Encoding = false;
 
     private String privateKeyStr;

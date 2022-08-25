@@ -44,10 +44,10 @@ public class ClientConnectionManager {
 
     private final Map<String, ClientConnection> connections = new ConcurrentHashMap<>();
 
-    public String createConnection(String ipAddress, ConnectionConfig connectionConfig, SocketChannel socketChannel) {
+    public String createConnection(String username, String ipAddress, ConnectionConfig connectionConfig, SocketChannel socketChannel) {
         String connectionId = UUID.randomUUID().toString();
 
-        connections.put(connectionId, new ClientConnection(connectionId, ipAddress, connectionConfig, LocalDateTime.now(), socketChannel));
+        connections.put(connectionId, new ClientConnection(connectionId, username, ipAddress, connectionConfig, LocalDateTime.now(), socketChannel));
 
         return connectionId;
     }
@@ -89,6 +89,9 @@ public class ClientConnectionManager {
                 LocalDateTime now = LocalDateTime.now();
                 cleanConnections(now.minusSeconds(600));
                 LOGGER.info("active connection {}", connections.size());
+                connections.forEach((id,con)->{
+                    LOGGER.info("active connection ip:{} user:{}", con.getIpAddress(),con.getUsername());
+                });
                 try {
                     //noinspection BusyWait
                     Thread.sleep(60_000L);

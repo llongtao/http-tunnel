@@ -27,7 +27,10 @@ import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 
 import org.apache.commons.lang3.StringUtils;
@@ -40,6 +43,8 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
@@ -55,6 +60,10 @@ import com.dutertry.htunnel.common.ConnectionConfig;
 import com.dutertry.htunnel.common.ConnectionRequest;
 import com.dutertry.htunnel.common.crypto.CryptoUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 /**
  * @author Nicolas Dutertry
@@ -73,8 +82,10 @@ public class TunnelClient implements Runnable {
     private final PrivateKey privateKey;
     
     private String connectionId;
+    private final String username;
+    private final String password;
     
-    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy, int bufferSize, boolean base64Encoding, PrivateKey privateKey) {
+    public TunnelClient(SocketChannel socketChannel, String host, int port, String tunnel, String proxy, int bufferSize, boolean base64Encoding, PrivateKey privateKey,String username,String password) {
         this.socketChannel = socketChannel;
         this.host = host;
         this.port = port;
@@ -83,6 +94,8 @@ public class TunnelClient implements Runnable {
         this.bufferSize = bufferSize;
         this.base64Encoding = base64Encoding;
         this.privateKey = privateKey;
+        this.username=username;
+        this.password=password;
     }
     
     public CloseableHttpClient createHttpCLient() throws URISyntaxException {
@@ -94,6 +107,8 @@ public class TunnelClient implements Runnable {
             DefaultProxyRoutePlanner routePlanner = new DefaultProxyRoutePlanner(proxy);
             builder.setRoutePlanner(routePlanner);
 
+
+
             // Proxy authentication
             String userInfo = proxyUri.getUserInfo();
             if(StringUtils.isNotBlank(userInfo)) {
@@ -101,11 +116,38 @@ public class TunnelClient implements Runnable {
                 String password = StringUtils.substringAfter(userInfo, ":");
                 CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
                 credentialsProvider.setCredentials(
-                    new AuthScope(proxyUri.getHost(), proxyUri.getPort()), 
+                    new AuthScope(proxyUri.getHost(), proxyUri.getPort()),
                     new UsernamePasswordCredentials(user, password));
                 builder.setDefaultCredentialsProvider(credentialsProvider);
             }
         }
+
+
+        try {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            X509TrustManager tm = new X509TrustManager() {
+                public X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+
+                public void checkClientTrusted(X509Certificate[] arg0,
+                                               String arg1) throws CertificateException {
+                }
+
+                public void checkServerTrusted(X509Certificate[] arg0,
+                                               String arg1) throws CertificateException {
+                }
+
+            };
+            ctx.init(null, new TrustManager[] { tm }, null);
+            SSLConnectionSocketFactory ssf = new SSLConnectionSocketFactory(
+                    ctx, NoopHostnameVerifier.INSTANCE);
+
+            builder.setSSLSocketFactory(ssf);
+        } catch (Exception e) {
+            LOGGER.error("获取X509TrustManager异常",e);
+        }
+
         return  builder.build();
     }
 
@@ -140,6 +182,8 @@ public class TunnelClient implements Runnable {
             connectionConfig.setPort(port);
             connectionConfig.setBufferSize(bufferSize);
             connectionConfig.setBase64Encoding(base64Encoding);
+            connectionConfig.setUsername(username);
+            connectionConfig.setPassword(password);
             
             ConnectionRequest connectionRequest = new ConnectionRequest();
             connectionRequest.setHelloResult(helloResult);
@@ -268,7 +312,7 @@ public class TunnelClient implements Runnable {
 
                     }else {
                         try{
-                            Thread.sleep(100);
+                            Thread.sleep(10);
                         }catch (Exception ignore){}
 
                     }
