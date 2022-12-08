@@ -1,11 +1,9 @@
-# htunnel
+# http-tunnel
+主要作用是使用http搭建隧道的形式从外网访问内网资源，监听本地端口代理内网资源
+例：外网可以通过http访问内网服务器，那么使用此隧道即可通过http形式，从外网访问内网所有资源，如数据库、redis、k8s集群内部资源、ssh等
+该项目是 https://github.com/nicolas-dutertry/htunnel 的派生分支，相比原版增加了多资源代理和账号准入的功能
 
-A simple HTTP Tunnel written in Java to encapsulate any TCP/IP connection and pass through HTTP proxies.
-
-It is typically used to perform SSH connections behind a corporate HTTP proxy that does not accept CONNECT method.
-
-It consists of a client module (htunnel-client) to be installed in the private network behind the HTTP proxy and a server module (htunnel-server) to be installed anywere on the Internet.
-
+# 基本原理如下
      ----------------------------------------------------------------   -----------------------------------------------
     | Corporate Network                                              | | Internet                                      | 
     |                                                                | |                                               |
@@ -20,44 +18,61 @@ It consists of a client module (htunnel-client) to be installed in the private n
     |                                                                | |                                               |
      ----------------------------------------------------------------   -----------------------------------------------
 
-## Build
+## 构建
+mvn clean install
 
-The source code is written in Java and can be built with Apache Maven. Perform the following command in the root directory:
+该项目使用springboot3，如果想将客户端打包为exe，使用如下命令
+mvn native:compile -Pnative -X -pl htunnel-client -DskipTests=true 
 
-    mvn clean install
-
-This will produce 2 jar files:
-* htunnel-client/target/htunnel-client-_version_.jar
-* htunnel-server/target/htunnel-server-_version_.jar
-
-## Usage
+## 使用
 
 ### htunnel-server
+部署在内网服务器
+```
+修改配置
+#rsa密钥对public-key，privateKeyStr在客户端配置
+public-key=you public-key
+#准入账号密码
+auth.user.username1=password1
+auth.user.username2=password2
 
-Run htunnel-server on any machine in the Internet:
+运行
+java -jar htunnel-server-version.jar
+```
 
-    java -jar htunnel-server-version.jar
+    
 
-It will start a HTTP server on port 8080.
 
-You can change port number with option --server.port:
-
-    java -jar htunnel-server-version.jar --server.port=80
 
 ### htunnel-client
+在用户机器运行
+```shell
+修改配置
+#账号密码
+tunnel.username=lilongtao
+tunnel.password=15122302291
 
-Run htunnel-client on any machine in the corporate network:
 
-    java -jar htunnel-client-version.jar --target=sshhost:sshport --tunnel=http://tunnelhost:8080/ --proxy=http://proxyhost:proxyport/
+#rsa密钥对 私钥，需要和server匹配
+tunnel.privateKeyStr=xxxxx
 
-It will start the client daemon on port 3000. Any communication made with htunnel client will be transferred to the specified target.
 
-You can change port number with option --port:
 
-    java -jar htunnel-client-version.jar --port=4000 --target=sshhost:sshport --tunnel=http://tunnelhost:8080/ --proxy=http://proxyhost:proxyport/
+#通过localhost:3000访问内网192.168.0.22:1234
+#监听本机端口
+tunnel.tunnels[0].port=3000 
+#htunnel-server访问地址
+tunnel.tunnels[0].server=http://xxx.com/ 
+#被代理的内网目标ip:port
+tunnel.tunnels[0].target=192.168.0.22:1234
 
-If the proxy requires authentication you can specify a user and password in the proxy url: `--proxy=http://username:pasword@proxyhost:proxyport/`
+#其他按此规则添加
+tunnel.tunnels[1].port=3001
+tunnel.tunnels[1].server=http://xxx.com/ 
+tunnel.tunnels[1].target=192.168.0.22:1236
 
-Finally perform SSH connection:
+#运行
+java -jar htunnel-client-version.jar
 
-    ssh -p 3000 localhost
+#若使用native打包，直接运行htunnel-client.exe 配置文件使用同目录application.properties
+```
