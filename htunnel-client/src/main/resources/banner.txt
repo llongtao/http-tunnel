@@ -1,7 +1,6 @@
 ${AnsiColor.BRIGHT_RED}
 ::
 ::  http-tunnel 客户端
-::  请勿将任何格力敏感信息外传
 ::  请妥善保管私钥严禁外传
 ::
 ${AnsiColor.DEFAULT}

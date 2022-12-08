@@ -3,7 +3,7 @@
     <parent>
         <groupId>com.dutertry.htunnel</groupId>
         <artifactId>htunnel</artifactId>
-        <version>1.2.0-SNAPSHOT</version>
+        <version>1.3.0-SNAPSHOT</version>
     </parent>
     <artifactId>htunnel-server</artifactId>
     <packaging>jar</packaging>

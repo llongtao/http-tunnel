@@ -11,7 +11,6 @@ import java.util.List;
 
 @Slf4j
 @Data
-@Configuration
 @ConfigurationProperties(prefix = "tunnel")
 public class TunnelProperties {
 
