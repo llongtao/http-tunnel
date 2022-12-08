@@ -50,13 +50,10 @@ java -jar htunnel-server-version.jar
 修改配置
 #账号密码
 tunnel.username=lilongtao
-tunnel.password=15122302291
-
+tunnel.password=xxxxxx
 
 #rsa密钥对 私钥，需要和server匹配
 tunnel.privateKeyStr=xxxxx
-
-
 
 #通过localhost:3000访问内网192.168.0.22:1234
 #监听本机端口
