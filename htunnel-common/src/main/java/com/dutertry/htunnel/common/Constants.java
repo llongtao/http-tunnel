@@ -23,8 +23,14 @@ package com.dutertry.htunnel.common;
  * @author Nicolas Dutertry
  *
  */
-public class Constants {
-    public static final String HEADER_CONNECTION_ID = "X-HTUNNEL-ID";
+public interface Constants {
+    String HEADER_CONNECTION_ID = "X-HTUNNEL-ID";
 
-    public static final String CRT = "ORxLWo^BR5$BKKqGBVqu050B#RzLfPAQ";
+    String CRT = "ORxLWo^BR5$BKKqGBVqu050B#RzLfPAQ";
+
+    String USERNAME_KEY = "username";
+    String PASSWORD_KEY = "password";
+    String TARGET_KEY = "target";
+
+    String SOCKET_CHANNEL_KEY = "SOCKET_CHANNEL";
 }

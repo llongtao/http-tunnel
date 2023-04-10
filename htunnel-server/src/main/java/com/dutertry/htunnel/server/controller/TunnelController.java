@@ -78,18 +78,8 @@ public class TunnelController {
     @Autowired
     private ClientConnectionManager clientConnectionManager;
 
-    @Value("${public-key:}")
-    private String publicKeyStr;
 
-    private PublicKey publicKey;
 
-    @PostConstruct
-    public void init() throws IOException {
-        if (StringUtils.isNotBlank(publicKeyStr)) {
-            LOGGER.info("Using public key {} for connection certification", publicKeyStr);
-            publicKey = CryptoUtils.readRSAPublicKey(publicKeyStr);
-        }
-    }
 
     @RequestMapping(value = "/hello", method = RequestMethod.GET)
     public String hello(HttpServletRequest request) {
@@ -114,15 +104,6 @@ public class TunnelController {
         checkAuth(username, connectionConfig.getPassword());
 
 
-        if (publicKey != null) {
-            try {
-                byte[] bytes = CryptoUtils.decryptRSA(helloResult.getBytes(StandardCharsets.UTF_8), publicKey);
-                helloResult = new String(bytes);
-            } catch (Exception e) {
-                LOGGER.info("Unable to decrypt connection request: {}", e.toString());
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-            }
-        }
         String[] split = helloResult.split("/");
 
         String helloIp = split[0];

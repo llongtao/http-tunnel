@@ -4,19 +4,15 @@ package com.dutertry.htunnel.client;
 import com.dutertry.htunnel.client.config.Tunnel;
 import com.dutertry.htunnel.client.config.TunnelProperties;
 import jakarta.annotation.PreDestroy;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 
 @EnableConfigurationProperties(TunnelProperties.class)
 @Slf4j
@@ -44,7 +40,7 @@ public class ClientRunner implements ApplicationRunner {
             String username = tunnelProperties.getUsername();
             String password = tunnelProperties.getPassword();
             tunnels.forEach(tunnel -> {
-                Thread thread = new Thread(new ClientListener(tunnel, privateKey, base64Encoding, username, password));
+                Thread thread = new Thread(new ClientListener(tunnel, username, password));
                 threadList.add(thread);
                 thread.start();
             });

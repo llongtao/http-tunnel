@@ -11,8 +11,4 @@ public class Tunnel {
 
     private String server;
 
-    private String proxy;
-
-
-    private int bufferSize = 1048576;
 }
