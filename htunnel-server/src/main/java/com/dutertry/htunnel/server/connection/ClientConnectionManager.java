@@ -99,6 +99,6 @@ public class ClientConnectionManager {
             }
         });
         cleaner.setDaemon(true);
-        cleaner.start();
+//        cleaner.start();
     }
 }

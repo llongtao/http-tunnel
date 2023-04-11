@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.util.*;
 
 @Component
@@ -66,7 +66,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         }
 
         String[] split = addrInfo.trim().split(":");
-
+        InetSocketAddress inetSocketAddress = new InetSocketAddress(split[0], Integer.parseInt(split[1]));
 
         Map<String, Object> attributes = session.getAttributes();
 
@@ -74,34 +74,48 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
 
         log.info("handshakeHeaders {}", handshakeHeaders);
 
+        Selector selector = Selector.open();
+
+        log.info("连接 ip:{} -> {}", session.getRemoteAddress(), inetSocketAddress);
+        SocketChannel remoteSocketChannel = SocketChannel.open();
+        remoteSocketChannel.connect(inetSocketAddress);
+        remoteSocketChannel.configureBlocking(false);
+        remoteSocketChannel.register(selector, SelectionKey.OP_READ);
+        session.getAttributes().put(Constants.SOCKET_CHANNEL_KEY, remoteSocketChannel);
+
         new Thread(() -> {
 
             try {
+
                 while (true) {
-                    SocketChannel socketChannel = SocketChannel.open();
-                    SocketAddress socketAddr = new InetSocketAddress(split[0], Integer.parseInt(split[1]));
-                    socketChannel.configureBlocking(true);
-                    socketChannel.connect(socketAddr);
-                    attributes.put(Constants.SOCKET_CHANNEL_KEY, socketChannel);
-                    while (true) {
-                        ByteBuffer bb = ByteBuffer.allocate(8192);
-                        try {
-                            int read = socketChannel.read(bb);
-                            if (read < 0) {
-                                break;
+                    selector.select();
+
+                    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+                    while (iterator.hasNext()) {
+                        SelectionKey key = iterator.next();
+                        iterator.remove();
+
+                        if (key.isReadable()) {
+                            // 读取数据并转发到对应的 SocketChannel 中
+                            SocketChannel socketChannel = (SocketChannel) key.channel();
+
+                            ByteBuffer buffer = ByteBuffer.allocate(8192);
+                            int bytesRead = socketChannel.read(buffer);
+
+                            if (bytesRead == -1) {
+                                // 关闭连接
+                                socketChannel.close();
+                            } else {
+                                buffer.flip();
+                                send(session, buffer);
                             }
-                        } catch (IOException e) {
-                            log.error("",e);
-                            break;
                         }
-                        send(session, bb);
-                        log.info("send(session, bb)");
                     }
                 }
 
 
-            } catch (Exception e) {
-                log.error("e", e);
+            } catch (IOException e) {
+                log.error("Error in listener loop", e);
             }
 
         }).start();
@@ -133,21 +147,23 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) throws Exception {
         //客户端发送二进信息是触发
-        log.info("发送二进制消息");
+        log.info("接收二进制消息");
         ByteBuffer payload = message.getPayload();
-        while (true){
-            SocketChannel socketChannel = (SocketChannel) session.getAttributes().get(Constants.SOCKET_CHANNEL_KEY);
-            if (socketChannel != null) {
-                try{
-                    socketChannel.write(payload);
-                }catch (Exception e){
-                    log.error(" ", e);
-                }
+//        byte[] bytes = new byte[payload.remaining()];
+//        payload.get(bytes);
+//        String request = new String(bytes).trim();
+//        System.out.println("接收：" + request);
+        SocketChannel socketChannel = (SocketChannel) session.getAttributes().get(Constants.SOCKET_CHANNEL_KEY);
+        if (socketChannel != null) {
+            try {
+                socketChannel.write(payload);
+            }catch (ClosedChannelException e){
 
-
-            } else {
-                log.info("接收到消息 ,req:{}", payload);
+            }catch (Exception e) {
+                log.error(" ", e);
             }
+        } else {
+            log.info("接收到消息 ,req:{}", payload);
         }
 
 
@@ -176,24 +192,72 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
     private void send(WebSocketSession session, ByteBuffer msg) {
         try {
             log.info("send:{}", msg);
-            session.sendMessage(new BinaryMessage(msg));
+            byte[] bytes = new byte[msg.remaining()];
+            msg.get(bytes);
+            String request = new String(bytes).trim();
+            System.out.println("send：" + request);
+            session.sendMessage(new BinaryMessage(ByteBuffer.wrap(bytes)));
+
         } catch (IOException e) {
-            log.error("",e);
+            log.error("", e);
         }
     }
 
+    private static final int LOCAL_PORT = 3000;
+    private static final String REMOTE_HOST = "192.168.0.25";
+    private static final int REMOTE_PORT = 3306;
+
     public static void main(String[] args) throws IOException {
-        SocketChannel socketChannel = SocketChannel.open();
-        SocketAddress socketAddr = new InetSocketAddress("192.168.0.25", 3306);
-        socketChannel.configureBlocking(true);
-        socketChannel.connect(socketAddr);
-        ByteBuffer bb = ByteBuffer.allocate(8192);
+        Selector selector = Selector.open();
+
+        // 创建本地 ServerSocketChannel，监听 3000 端口
+        ServerSocketChannel localServerSocketChannel = ServerSocketChannel.open();
+        localServerSocketChannel.bind(new InetSocketAddress(LOCAL_PORT));
+        localServerSocketChannel.configureBlocking(false);
+        localServerSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+
         while (true) {
-            int read = socketChannel.read(bb);
-            System.out.println(read);
+            selector.select();
+
+            Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+            while (iterator.hasNext()) {
+                SelectionKey key = iterator.next();
+                iterator.remove();
+
+                if (key.isAcceptable()) {
+                    // 本地 ServerSocketChannel 接受连接请求
+                    ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
+                    SocketChannel localSocketChannel = serverSocketChannel.accept();
+                    localSocketChannel.configureBlocking(false);
+
+                    // 连接远程 MySQL 服务器
+                    //SocketChannel remoteSocketChannel = SocketChannel.open();
+                    //remoteSocketChannel.connect(new InetSocketAddress(REMOTE_HOST, REMOTE_PORT));
+                    //remoteSocketChannel.configureBlocking(false);
+
+                    // 注册本地 SocketChannel 和远程 SocketChannel 到 Selector 中
+                    localSocketChannel.register(selector, SelectionKey.OP_READ,ByteBuffer.allocate(8192));
+                    //remoteSocketChannel.register(selector, SelectionKey.OP_READ, localSocketChannel);
+                } else if (key.isReadable()) {
+                    // 读取数据并转发到对应的 SocketChannel 中
+                    SocketChannel socketChannel = (SocketChannel) key.channel();
+                    //SocketChannel targetSocketChannel = (SocketChannel) key.attachment();
+
+                    ByteBuffer buffer = ByteBuffer.allocate(1024);
+
+                    int bytesRead = socketChannel.read(buffer);
+                    if (bytesRead == -1) {
+                        // 关闭连接
+                        socketChannel.close();
+                       // targetSocketChannel.close();
+                    } else {
+                        buffer.flip();
+                        System.out.println(buffer);
+                        //targetSocketChannel.write(buffer);
+                    }
+                }
+            }
         }
-
-
     }
 
 }
