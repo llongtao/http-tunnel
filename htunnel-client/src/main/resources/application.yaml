@@ -2,15 +2,14 @@ server.port: 31212
 logging.pattern.console: '%d{yyyy-MM-dd HH:mm:ss} [%5p] %m%n'
 spring.config.location: application.yaml
 
-server:
-  mvp: ws://tunnel2.greeqd.gree.com/message
-  pre: wss://tunnel2.yshcs.gree.com:9635/message
-  test: ws://tunnel2.flydiy.gree.com/message
+logging:
+  level:
+    root: info
 
 
 tunnel:
   username: lilongtao
-  password: 15122302291
+  password: xxx
   tunnels:
     - port: 8888
       resource: git
@@ -24,7 +23,5 @@ tunnel:
     - port: 2122
       resource: pressh
       server: ${server.pre}
-logging:
-  level:
-    root: info
+
 
