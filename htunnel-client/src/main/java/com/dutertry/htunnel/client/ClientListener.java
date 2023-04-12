@@ -93,7 +93,8 @@ public class ClientListener implements Runnable {
                         // 连接远程 MySQL 服务器
                         // 注册本地 SocketChannel 和远程 SocketChannel 到 Selector 中
 
-                        System.out.println("客户端连接成功：" + localSocketChannel.getRemoteAddress());
+                        log.info("客户端连接成功：{}->{} on localhost:{}", localSocketChannel.getRemoteAddress(), tunnel.getResource(), tunnel.getPort());
+
                         new ClientChannel(localSocketChannel, tunnel, username, password).run();
                     }
                 }

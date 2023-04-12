@@ -7,6 +7,10 @@ import org.springframework.web.socket.*;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.SocketException;
 import java.net.URI;
@@ -14,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.security.cert.X509Certificate;
 import java.util.Iterator;
 
 /**
@@ -65,16 +70,42 @@ public class ClientChannel {
         headers.add(Constants.RESOURCE_KEY, resource);
 
 
+        TrustManager[] trustAllCerts = new TrustManager[] {
+                new X509TrustManager() {
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
+                    }
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
+                    }
+                }
+        };
+        SSLContext sslContext = null;
+        try {
+            sslContext = SSLContext.getInstance("SSL");
+            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+
+
         StandardWebSocketClient webSocketClient = new StandardWebSocketClient();
+        //webSocketClient.setUserProperties(Collections.singletonMap(StandardWebSocketClient.HEADER_SEC_WEBSOCKET_PROTOCOL, "wss"));
+
+
         webSocketClient.execute(new AbstractWebSocketHandler() {
 
 
             @Override
             public void afterConnectionEstablished(WebSocketSession session) throws Exception {
 
+                //noinspection AlibabaAvoidManuallyCreateThread
                 new Thread(() -> {
                     try {
-                        while (true) {
+                        while (session.isOpen()) {
                             selector.select();
 
                             Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
@@ -100,7 +131,7 @@ public class ClientChannel {
                                         } else {
                                             buffer.flip();
                                             log.debug("send(session, buffer)");
-                                            send(session, buffer);
+                                            safeSend(session, buffer);
                                         }
                                     } catch (SocketException e) {
                                         log.error(" ", e);
@@ -117,11 +148,29 @@ public class ClientChannel {
                     }
                 }).start();
 
+                //noinspection AlibabaAvoidManuallyCreateThread
+                new Thread(() -> {
+                    while (session.isOpen()) {
+                        safeSend(session, "ping");
+                        try {
+                            Thread.sleep(10000);
+                        } catch (InterruptedException e) {
+                            log.error("", e);
+                        }
+                    }
+                }).start();
+
             }
 
 
             protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-                log.info("接收消息:{}", message.getPayload());
+                String payload = message.getPayload();
+                log.debug("接收消息:{}", payload);
+                if (Constants.UN_AUTH_MSG.equals(payload)) {
+                    log.error("用户名或密码不正确");
+                } else if (payload.startsWith(Constants.ERR_MSG_PRE)) {
+                    log.error("连接跳板机失败:" + payload);
+                }
             }
 
             protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) throws Exception {
@@ -157,11 +206,19 @@ public class ClientChannel {
 
             @Override
             public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
-                log.info("解除绑定 localhost:{} -> {} on {} code:{}", port, resource, server, closeStatus);
+                log.info("断开连接 on {} code:{}", resource, closeStatus);
                 socketChannel.close();
             }
 
         }, headers, URI.create(server));
+    }
+
+    private synchronized void safeSend(WebSocketSession session, Object msg) {
+        if (msg instanceof String) {
+            send(session, (String) msg);
+        } else if (msg instanceof ByteBuffer) {
+            send(session, (ByteBuffer) msg);
+        }
     }
 
     private void send(WebSocketSession session, ByteBuffer msg) {
@@ -174,6 +231,17 @@ public class ClientChannel {
                 log.debug("发送远程请求：" + request);
             }
             session.sendMessage(new BinaryMessage(ByteBuffer.wrap(bytes)));
+        } catch (IOException e) {
+            log.error("发送远程请求失败", e);
+        }
+    }
+
+    private void send(WebSocketSession session, String msg) {
+        try {
+            if (log.isDebugEnabled()) {
+                log.debug("发送远程请求：{}", msg);
+            }
+            session.sendMessage(new TextMessage(msg));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

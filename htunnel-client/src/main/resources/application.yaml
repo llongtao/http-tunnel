@@ -1,0 +1,29 @@
+server.port: 31212
+logging.level.root: info
+logging.pattern.console: '%d{yyyy-MM-dd HH:mm:ss} [%5p] %m%n'
+spring.config.location: application.yaml
+
+server:
+  mvp: ws://tunnel2.greeqd.gree.com/message
+  pre: wss://tunnel2.yshcs.gree.com:9635/message
+  test: ws://tunnel2.flydiy.gree.com/message
+
+
+tunnel:
+  username: lilongtao
+  password: 15122302291
+  tunnels:
+    - port: 8888
+      resource: git
+      server: ${server.mvp}
+    - port: 3306
+      resource: mvpmysql
+      server: ${server.mvp}
+    - port: 13306
+      resource: premysql
+      server: ${server.pre}
+    - port: 2122
+      resource: pressh
+      server: ${server.pre}
+
+
