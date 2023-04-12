@@ -1,5 +1,4 @@
 server.port: 31212
-logging.level.root: info
 logging.pattern.console: '%d{yyyy-MM-dd HH:mm:ss} [%5p] %m%n'
 spring.config.location: application.yaml
 
@@ -25,5 +24,7 @@ tunnel:
     - port: 2122
       resource: pressh
       server: ${server.pre}
-
+logging:
+  level:
+    root: info
 

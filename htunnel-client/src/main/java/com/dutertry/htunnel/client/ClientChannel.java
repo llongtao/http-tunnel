@@ -6,19 +6,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.AbstractWebSocketHandler;
+import org.springframework.web.socket.handler.WebSocketHandlerDecoratorFactory;
+import org.springframework.web.socket.messaging.WebSocketStompClient;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.*;
 import java.io.IOException;
+import java.net.Socket;
 import java.net.SocketException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.Iterator;
 
 /**
@@ -70,30 +74,10 @@ public class ClientChannel {
         headers.add(Constants.RESOURCE_KEY, resource);
 
 
-        TrustManager[] trustAllCerts = new TrustManager[] {
-                new X509TrustManager() {
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                        return null;
-                    }
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
-                    }
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
-                    }
-                }
-        };
-        SSLContext sslContext = null;
-        try {
-            sslContext = SSLContext.getInstance("SSL");
-            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
-
+        SSLContext sslContext = getSslContext();
 
         StandardWebSocketClient webSocketClient = new StandardWebSocketClient();
-        //webSocketClient.setUserProperties(Collections.singletonMap(StandardWebSocketClient.HEADER_SEC_WEBSOCKET_PROTOCOL, "wss"));
+        webSocketClient.setUserProperties(Collections.singletonMap("org.apache.tomcat.websocket.SSL_CONTEXT", sslContext));
 
 
         webSocketClient.execute(new AbstractWebSocketHandler() {
@@ -211,6 +195,54 @@ public class ClientChannel {
             }
 
         }, headers, URI.create(server));
+    }
+
+    private static SSLContext getSslContext() {
+        SSLContext sslContext = null;
+        try {
+            sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{new X509ExtendedTrustManager() {
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
+
+                }
+
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
+
+                }
+
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
+
+                }
+
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
+
+                }
+
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+
+                }
+
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+
+                }
+
+                @Override
+                public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[]{};
+                }
+
+            }}, null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return sslContext;
     }
 
     private synchronized void safeSend(WebSocketSession session, Object msg) {
