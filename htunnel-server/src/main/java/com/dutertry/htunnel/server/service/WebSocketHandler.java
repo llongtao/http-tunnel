@@ -48,7 +48,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
 
         if (ObjectUtils.isEmpty(password) || !Objects.equals(user.get(username), password)) {
             log.error("账号密码不在允许列表 username:{} password:{}", username, password);
-            send(session, Constants.UN_AUTH_MSG);
+            safeSend(session, Constants.UN_AUTH_MSG);
             session.close(CloseStatus.NOT_ACCEPTABLE);
             return;
         }
@@ -60,7 +60,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         String addrInfo = map.get(resource);
         if (ObjectUtils.isEmpty(addrInfo)) {
             log.error("找不到资源:{}", resource);
-            send(session, Constants.ERR_MSG_PRE + "unknownResource:" + resource);
+            safeSend(session, Constants.ERR_MSG_PRE + "unknownResource:" + resource);
             session.close(CloseStatus.NOT_ACCEPTABLE);
             return;
         }
@@ -109,7 +109,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
                                 session.close();
                             } else {
                                 buffer.flip();
-                                send(session, buffer);
+                                safeSend(session, buffer);
                             }
                         }
                     }
@@ -134,7 +134,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         String payload = message.getPayload();
 
         if ("ping".equals(payload)) {
-            send(session, "pong");
+            safeSend(session, "pong");
             return;
         }
 
@@ -189,6 +189,13 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         log.info("关闭websocket连接");
     }
 
+    private synchronized void safeSend(WebSocketSession session, Object msg) {
+        if (msg instanceof String) {
+            send(session, (String) msg);
+        } else if (msg instanceof ByteBuffer) {
+            send(session, (ByteBuffer) msg);
+        }
+    }
     private void send(WebSocketSession session, String msg) {
         try {
             session.sendMessage(new TextMessage(msg));
