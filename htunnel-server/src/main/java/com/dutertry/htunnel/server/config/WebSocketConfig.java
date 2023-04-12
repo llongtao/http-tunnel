@@ -10,14 +10,15 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
- 
+
     @Autowired
     private WebSocketHandler webSocketHandler;
- 
+
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+        //websocket连接地址 ws://localhost:8080/msg
         registry
-                .addHandler(webSocketHandler, "/message")//websocket连接地址 ws://localhost:8080/msg
+                .addHandler(webSocketHandler, "/message")
                 //允许跨域，方便本地调试，生产建议去掉
                 .setAllowedOrigins("*")
 

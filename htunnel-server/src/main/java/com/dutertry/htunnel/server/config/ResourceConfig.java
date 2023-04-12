@@ -7,10 +7,13 @@ import org.springframework.context.annotation.Configuration;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * @author lilongtao
+ */
 @Data
 @Configuration
-@ConfigurationProperties(prefix = "conn")
-public class ConnConfig {
+@ConfigurationProperties(prefix = "resource")
+public class ResourceConfig {
 
     Map<String,String> map = new HashMap<>();
 }

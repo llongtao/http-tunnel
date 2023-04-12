@@ -10,6 +10,5 @@ import java.util.Map;
 @Configuration
 @ConfigurationProperties(prefix = "auth")
 public class AuthConfig {
-
     Map<String,String> user;
 }

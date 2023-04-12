@@ -7,7 +7,7 @@ public class Tunnel {
 
     private int port;
 
-    private String target;
+    private String resource;
 
     private String server;
 

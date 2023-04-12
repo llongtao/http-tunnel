@@ -3,10 +3,12 @@ package com.dutertry.htunnel.server.service;
 
 import com.dutertry.htunnel.common.Constants;
 import com.dutertry.htunnel.server.config.AuthConfig;
-import com.dutertry.htunnel.server.config.ConnConfig;
+import com.dutertry.htunnel.server.config.ResourceConfig;
+import com.dutertry.htunnel.server.utils.LogUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
@@ -15,20 +17,21 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
-import java.util.*;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 @Component
 @Slf4j
 public class WebSocketHandler extends AbstractWebSocketHandler {
 
     @Resource
-    ConnConfig config;
+    ResourceConfig config;
 
     @Resource
     AuthConfig authConfig;
@@ -37,32 +40,29 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         //socket连接成功后触发
-        log.info("建立websocket连接");
-
-
-//        WebSocketSessionManager.add(session.getId(), session);
 
         HttpHeaders handshakeHeaders = session.getHandshakeHeaders();
-        String username = handshakeHeaders.getFirst("username");
-        String password = handshakeHeaders.getFirst("password");
+        String username = handshakeHeaders.getFirst(Constants.USERNAME_KEY);
+        String password = handshakeHeaders.getFirst(Constants.PASSWORD_KEY);
         Map<String, String> user = authConfig.getUser();
 
         if (ObjectUtils.isEmpty(password) || !Objects.equals(user.get(username), password)) {
-            log.error("username password not in permit list username:{} password:{}", username, password);
-            send(session, "[error]unAuth");
+            log.error("账号密码不在允许列表 username:{} password:{}", username, password);
+            send(session, Constants.UN_AUTH_MSG);
             session.close(CloseStatus.NOT_ACCEPTABLE);
+            return;
         }
+        MDC.put(Constants.TRACE_ID_KEY, username);
 
-
-        String target = handshakeHeaders.getFirst("target");
-
+        String resource = handshakeHeaders.getFirst(Constants.RESOURCE_KEY);
 
         Map<String, String> map = config.getMap();
-        String addrInfo = map.get(target);
+        String addrInfo = map.get(resource);
         if (ObjectUtils.isEmpty(addrInfo)) {
-            log.error("unknownTarget:{}", target);
-            send(session, "[error]unknownTarget:" + target);
+            log.error("找不到资源:{}", resource);
+            send(session, Constants.ERR_MSG_PRE + "unknownResource:" + resource);
             session.close(CloseStatus.NOT_ACCEPTABLE);
+            return;
         }
 
         String[] split = addrInfo.trim().split(":");
@@ -70,7 +70,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
 
         Map<String, Object> attributes = session.getAttributes();
 
-        attributes.put("username", username);
+        attributes.put(Constants.USERNAME_KEY, username);
 
         log.info("handshakeHeaders {}", handshakeHeaders);
 
@@ -81,8 +81,9 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         remoteSocketChannel.connect(inetSocketAddress);
         remoteSocketChannel.configureBlocking(false);
         remoteSocketChannel.register(selector, SelectionKey.OP_READ);
-        session.getAttributes().put(Constants.SOCKET_CHANNEL_KEY, remoteSocketChannel);
+        setSocketChannel(session, remoteSocketChannel);
 
+        //noinspection AlibabaAvoidManuallyCreateThread
         new Thread(() -> {
 
             try {
@@ -105,6 +106,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
                             if (bytesRead == -1) {
                                 // 关闭连接
                                 socketChannel.close();
+                                session.close();
                             } else {
                                 buffer.flip();
                                 send(session, buffer);
@@ -124,44 +126,42 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-
+        LogUtils.setTrace(session);
 
         // 客户端发送普通文件信息时触发
-        log.info("发送文本消息");
+        log.debug("收到文本消息");
         // 获得客户端传来的消息
         String payload = message.getPayload();
-
 
         if ("ping".equals(payload)) {
             send(session, "pong");
             return;
         }
 
-        Object username = session.getAttributes().get("username");
 
-        log.info("服务端接收到消息 uid:{},req:{}", username, payload);
+        log.info("服务端接收到消息 req:{}", payload);
 
 
     }
 
     @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) throws Exception {
-        //客户端发送二进信息是触发
-        log.info("接收二进制消息");
-        ByteBuffer payload = message.getPayload();
-//        byte[] bytes = new byte[payload.remaining()];
-//        payload.get(bytes);
-//        String request = new String(bytes).trim();
-//        System.out.println("接收：" + request);
-        SocketChannel socketChannel = (SocketChannel) session.getAttributes().get(Constants.SOCKET_CHANNEL_KEY);
-        if (socketChannel != null) {
-            try {
-                socketChannel.write(payload);
-            }catch (ClosedChannelException e){
+        LogUtils.setTrace(session);
 
-            }catch (Exception e) {
-                log.error(" ", e);
-            }
+        //客户端发送二进信息是触发
+        log.debug("接收二进制消息");
+        ByteBuffer payload = message.getPayload();
+        if (log.isDebugEnabled()) {
+            byte[] bytes = new byte[payload.remaining()];
+            payload.get(bytes);
+            String request = new String(bytes).trim();
+            log.debug("接收：" + request);
+        }
+
+        Optional<SocketChannel> socketChannel = getSocketChannel(session);
+
+        if (socketChannel.isPresent()) {
+            socketChannel.get().write(payload);
         } else {
             log.info("接收到消息 ,req:{}", payload);
         }
@@ -171,12 +171,20 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+        LogUtils.setTrace(session);
         //异常时触发
-        log.error("异常处理", exception);
+        log.error("WebSocket异常", exception);
+        Optional<SocketChannel> socketChannel = getSocketChannel(session);
+        if (socketChannel.isPresent()) {
+            socketChannel.get().close();
+        }
+        session.close();
+
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+        LogUtils.setTrace(session);
         // socket连接关闭后触发
         log.info("关闭websocket连接");
     }
@@ -190,74 +198,29 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
     }
 
     private void send(WebSocketSession session, ByteBuffer msg) {
+        LogUtils.setTrace(session);
         try {
-            log.info("send:{}", msg);
+            LogUtils.setTrace(session);
+            log.debug("send:{}", msg);
             byte[] bytes = new byte[msg.remaining()];
             msg.get(bytes);
-            String request = new String(bytes).trim();
-            System.out.println("send：" + request);
+            if (log.isDebugEnabled()) {
+                String request = new String(bytes).trim();
+                System.out.println("send：" + request);
+            }
             session.sendMessage(new BinaryMessage(ByteBuffer.wrap(bytes)));
-
         } catch (IOException e) {
             log.error("", e);
         }
     }
 
-    private static final int LOCAL_PORT = 3000;
-    private static final String REMOTE_HOST = "192.168.0.25";
-    private static final int REMOTE_PORT = 3306;
-
-    public static void main(String[] args) throws IOException {
-        Selector selector = Selector.open();
-
-        // 创建本地 ServerSocketChannel，监听 3000 端口
-        ServerSocketChannel localServerSocketChannel = ServerSocketChannel.open();
-        localServerSocketChannel.bind(new InetSocketAddress(LOCAL_PORT));
-        localServerSocketChannel.configureBlocking(false);
-        localServerSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-
-        while (true) {
-            selector.select();
-
-            Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-            while (iterator.hasNext()) {
-                SelectionKey key = iterator.next();
-                iterator.remove();
-
-                if (key.isAcceptable()) {
-                    // 本地 ServerSocketChannel 接受连接请求
-                    ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
-                    SocketChannel localSocketChannel = serverSocketChannel.accept();
-                    localSocketChannel.configureBlocking(false);
-
-                    // 连接远程 MySQL 服务器
-                    //SocketChannel remoteSocketChannel = SocketChannel.open();
-                    //remoteSocketChannel.connect(new InetSocketAddress(REMOTE_HOST, REMOTE_PORT));
-                    //remoteSocketChannel.configureBlocking(false);
-
-                    // 注册本地 SocketChannel 和远程 SocketChannel 到 Selector 中
-                    localSocketChannel.register(selector, SelectionKey.OP_READ,ByteBuffer.allocate(8192));
-                    //remoteSocketChannel.register(selector, SelectionKey.OP_READ, localSocketChannel);
-                } else if (key.isReadable()) {
-                    // 读取数据并转发到对应的 SocketChannel 中
-                    SocketChannel socketChannel = (SocketChannel) key.channel();
-                    //SocketChannel targetSocketChannel = (SocketChannel) key.attachment();
-
-                    ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-                    int bytesRead = socketChannel.read(buffer);
-                    if (bytesRead == -1) {
-                        // 关闭连接
-                        socketChannel.close();
-                       // targetSocketChannel.close();
-                    } else {
-                        buffer.flip();
-                        System.out.println(buffer);
-                        //targetSocketChannel.write(buffer);
-                    }
-                }
-            }
-        }
+    Optional<SocketChannel> getSocketChannel(WebSocketSession session) {
+        return Optional.ofNullable((SocketChannel) session.getAttributes().get(Constants.SOCKET_CHANNEL_KEY));
     }
+
+    void setSocketChannel(WebSocketSession session, SocketChannel socketChannel) {
+        session.getAttributes().put(Constants.SOCKET_CHANNEL_KEY, socketChannel);
+    }
+
 
 }

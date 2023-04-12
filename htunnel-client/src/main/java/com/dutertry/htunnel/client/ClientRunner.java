@@ -34,8 +34,7 @@ public class ClientRunner implements ApplicationRunner {
         log.info("load config:{}", tunnelProperties);
 
         try {
-            PrivateKey privateKey = tunnelProperties.getPrivateKey();
-            boolean base64Encoding = tunnelProperties.isBase64Encoding();
+
             List<Tunnel> tunnels = tunnelProperties.getTunnels();
             String username = tunnelProperties.getUsername();
             String password = tunnelProperties.getPassword();

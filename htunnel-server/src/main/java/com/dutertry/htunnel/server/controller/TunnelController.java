@@ -19,48 +19,13 @@
  */
 package com.dutertry.htunnel.server.controller;
 
-import static com.dutertry.htunnel.common.Constants.HEADER_CONNECTION_ID;
-
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
-import java.security.PublicKey;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.Base64;
-import java.util.Map;
-import java.util.Objects;
-import com.dutertry.htunnel.common.Constants;
-import com.dutertry.htunnel.server.config.AuthConfig;
-import jakarta.annotation.PostConstruct;
+import com.dutertry.htunnel.server.config.ResourceConfig;
 import jakarta.annotation.Resource;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.ObjectUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
-import com.dutertry.htunnel.common.ConnectionConfig;
-import com.dutertry.htunnel.common.ConnectionRequest;
-import com.dutertry.htunnel.common.crypto.CryptoUtils;
-import com.dutertry.htunnel.server.connection.ClientConnection;
-import com.dutertry.htunnel.server.connection.ClientConnectionManager;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.Map;
 
 /**
  * @author Nicolas Dutertry
@@ -68,197 +33,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Slf4j
 @RestController
 public class TunnelController {
-    private static final Logger LOGGER = LoggerFactory.getLogger(TunnelController.class);
-
-    private static final long READ_WAIT_TIME = 10000L;
 
     @Resource
-    AuthConfig authConfig;
-
-    @Autowired
-    private ClientConnectionManager clientConnectionManager;
+    ResourceConfig resourceConfig;
 
 
-
-
-    @RequestMapping(value = "/hello", method = RequestMethod.GET)
-    public String hello(HttpServletRequest request) {
-        String ipAddress = request.getRemoteAddr();
-        return ipAddress + "/" + LocalDateTime.now() + "/" + Constants.CRT;
+    @GetMapping(value = "/resource")
+    public Map<String, String> resource() {
+        return resourceConfig.getMap();
     }
 
-    @RequestMapping(value = "/connect", method = RequestMethod.POST)
-    public String connection(
-            HttpServletRequest request,
-            @RequestBody byte[] connectionRequestBytes) throws IOException {
-
-
-        ObjectMapper mapper = new ObjectMapper();
-        ConnectionRequest connectionRequest = mapper.readValue(connectionRequestBytes, ConnectionRequest.class);
-
-        String ipAddress = request.getRemoteAddr();
-        LocalDateTime now = LocalDateTime.now();
-        String helloResult = connectionRequest.getHelloResult();
-        ConnectionConfig connectionConfig = connectionRequest.getConnectionConfig();
-        String username = connectionConfig.getUsername();
-        checkAuth(username, connectionConfig.getPassword());
-
-
-        String[] split = helloResult.split("/");
-
-        String helloIp = split[0];
-        String helloDateTimeStr = split[1];
-        String crt = split[2];
-
-        if (!Objects.equals(crt, Constants.CRT)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-        if (!ipAddress.equals(helloIp)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-        LocalDateTime helloDateTime = LocalDateTime.parse(helloDateTimeStr);
-        if (helloDateTime.until(now, ChronoUnit.SECONDS) > 300) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-
-
-        String host = connectionConfig.getHost();
-        int port = connectionConfig.getPort();
-        LOGGER.info("New connection received from {} for target {}:{}",
-                ipAddress, host, port);
-        LOGGER.info("Buffer size is {}", connectionConfig.getBufferSize());
-        LOGGER.info("Base64 encoding is {}", connectionConfig.isBase64Encoding());
-
-
-        SocketChannel socketChannel = SocketChannel.open();
-        SocketAddress socketAddr = new InetSocketAddress(host, port);
-        socketChannel.connect(socketAddr);
-        socketChannel.configureBlocking(false);
-
-        return clientConnectionManager.createConnection(username, ipAddress, connectionConfig, socketChannel);
-    }
-
-    private void checkAuth(String username, String password) {
-        Map<String, String> user = authConfig.getUser();
-        if (ObjectUtils.isEmpty(password) || !Objects.equals(user.get(username), password)) {
-            log.error("username password not in permit list username:{} password:{}", username, password);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-        }
-    }
-
-    @RequestMapping(value = "/write", method = RequestMethod.POST)
-    public void write(
-            HttpServletRequest request,
-            @RequestHeader(HEADER_CONNECTION_ID) String connectionId,
-            @RequestBody byte[] body) throws IOException {
-
-        String ipAddress = request.getRemoteAddr();
-
-        LOGGER.debug("New write request from {} for ID {} with body length {}", ipAddress, connectionId, body.length);
-
-        ClientConnection connection = getConnection(ipAddress, connectionId);
-        SocketChannel socketChannel = connection.getSocketChannel();
-
-        byte[] bytes = body;
-        if (connection.getConnectionConfig().isBase64Encoding()) {
-            bytes = Base64.getDecoder().decode(body);
-        }
-        connection.updateUseTime();
-        if (bytes.length > 0) {
-            ByteBuffer bb = ByteBuffer.wrap(bytes);
-            while (bb.hasRemaining()) {
-                socketChannel.write(bb);
-            }
-        }
-    }
-
-    @RequestMapping(value = "/read", method = RequestMethod.GET)
-    public byte[] read(
-            HttpServletRequest request,
-            @RequestHeader(HEADER_CONNECTION_ID) String connectionId) throws IOException {
-
-        String ipAddress = request.getRemoteAddr();
-
-        LOGGER.debug("New read request from {} for ID {}", ipAddress, connectionId);
-
-        ClientConnection connection = getConnection(ipAddress, connectionId);
-        SocketChannel socketChannel = connection.getSocketChannel();
-
-        ByteBuffer bb = connection.getReadBuffer();
-        bb.clear();
-
-        long startTime = System.currentTimeMillis();
-
-        connection.updateUseTime();
-
-        while (true) {
-            int read;
-            try {
-                read = socketChannel.read(bb);
-            } catch (ClosedChannelException e) {
-                read = -1;
-            }
-
-            if (!bb.hasRemaining() || read <= 0) {
-                if (bb.position() > 0) {
-                    bb.flip();
-
-                    ByteBuffer resultBuffer = bb;
-                    if (connection.getConnectionConfig().isBase64Encoding()) {
-                        resultBuffer = Base64.getEncoder().encode(bb);
-                    }
-
-                    byte[] bytes = new byte[resultBuffer.limit()];
-                    resultBuffer.get(bytes);
-
-                    return bytes;
-                } else {
-                    if (read == -1) {
-                        throw new ResponseStatusException(HttpStatus.GONE, "EOF reached");
-                    }
-
-                    long now = System.currentTimeMillis();
-                    if (now - startTime >= READ_WAIT_TIME) {
-                        return new byte[0];
-                    }
-                }
-            }
-        }
-    }
-
-    @RequestMapping(value = "/close", method = RequestMethod.GET)
-    public void close(
-            HttpServletRequest request,
-            @RequestHeader(HEADER_CONNECTION_ID) String connectionId) throws IOException {
-
-        String ipAddress = request.getRemoteAddr();
-
-        LOGGER.info("New close request from {} for ID {}", ipAddress, connectionId);
-
-        ClientConnection connection = getConnection(ipAddress, connectionId);
-        SocketChannel socketChannel = connection.getSocketChannel();
-
-        socketChannel.close();
-
-        clientConnectionManager.removeConnection(connectionId);
-    }
-
-    @RequestMapping(value = "/", method = RequestMethod.GET)
-    public String about(final HttpServletRequest request, final HttpServletResponse response)
-            throws URISyntaxException, IOException {
-        return "htunnel";
-    }
-
-    private ClientConnection getConnection(String ipAddress, String connectionId) {
-        ClientConnection connection = clientConnectionManager.getConnection(connectionId);
-        if (connection == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unable to find connection");
-        }
-        if (!StringUtils.equals(ipAddress, connection.getIpAddress())) {
-            log.error("ip not match loginIp:{} connectionIp:{}", ipAddress, connection.getIpAddress());
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-
-        return connection;
-    }
 }

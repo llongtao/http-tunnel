@@ -43,4 +43,15 @@ public class TunnelProperties {
     }
 
 
+    @Override
+    public String toString() {
+        return "TunnelProperties{" +
+                "username='" + username + '\'' +
+                ", password='******" +  '\'' +
+                ", base64Encoding=" + base64Encoding +
+                ", privateKeyStr='" + privateKeyStr + '\'' +
+                ", privateKey=" + privateKey +
+                ", tunnels=" + tunnels +
+                '}';
+    }
 }
