@@ -48,7 +48,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
 
         if (ObjectUtils.isEmpty(password) || !Objects.equals(user.get(username), password)) {
             log.error("账号密码不在允许列表 username:{} password:{}", username, password);
-            safeSend(session, Constants.UN_AUTH_MSG);
+            send(session, Constants.UN_AUTH_MSG);
             session.close(CloseStatus.NOT_ACCEPTABLE);
             return;
         }
@@ -60,7 +60,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         String addrInfo = map.get(resource);
         if (ObjectUtils.isEmpty(addrInfo)) {
             log.error("找不到资源:{}", resource);
-            safeSend(session, Constants.ERR_MSG_PRE + "unknownResource:" + resource);
+            send(session, Constants.ERR_MSG_PRE + "unknownResource:" + resource);
             session.close(CloseStatus.NOT_ACCEPTABLE);
             return;
         }
@@ -109,7 +109,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
                                 session.close();
                             } else {
                                 buffer.flip();
-                                safeSend(session, buffer);
+                                send(session, buffer);
                             }
                         }
                     }
@@ -134,14 +134,11 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         String payload = message.getPayload();
 
         if ("ping".equals(payload)) {
-            safeSend(session, "pong");
+            log.debug("收到ping");
             return;
         }
 
-
         log.info("服务端接收到消息 req:{}", payload);
-
-
     }
 
     @Override
@@ -189,21 +186,6 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         log.info("关闭websocket连接");
     }
 
-    private synchronized void safeSend(WebSocketSession session, Object msg) {
-        if (msg instanceof String) {
-            send(session, (String) msg);
-        } else if (msg instanceof ByteBuffer) {
-            send(session, (ByteBuffer) msg);
-        }
-    }
-    private void send(WebSocketSession session, String msg) {
-        try {
-            session.sendMessage(new TextMessage(msg));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private void send(WebSocketSession session, ByteBuffer msg) {
         LogUtils.setTrace(session);
         try {
@@ -218,6 +200,17 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
             session.sendMessage(new BinaryMessage(ByteBuffer.wrap(bytes)));
         } catch (IOException e) {
             log.error("", e);
+        }
+    }
+
+    private void send(WebSocketSession session, String msg) {
+        try {
+            if (log.isDebugEnabled()) {
+                log.debug("发送远程请求：{}", msg);
+            }
+            session.sendMessage(new TextMessage(msg));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
