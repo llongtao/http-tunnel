@@ -1,27 +1,19 @@
-server.port: 31212
 logging.pattern.console: '%d{yyyy-MM-dd HH:mm:ss} [%5p] %m%n'
-spring.config.location: application.yaml
 
 logging:
   level:
     root: info
 
+#tunnel:
+#  username: 你的用户名
+#  password: 你的密码
+#  tunnels:
+#    - port: 3001
+#      resource: test
+#      server: ws://你的服务器地址/message
+#    - port: 3002
+#      resource: test2
+#      server: ws://你的服务器地址/message
 
-tunnel:
-  username: lilongtao
-  password: xxx
-  tunnels:
-    - port: 8888
-      resource: git
-      server: ${server.mvp}
-    - port: 3306
-      resource: mvpmysql
-      server: ${server.mvp}
-    - port: 13306
-      resource: premysql
-      server: ${server.pre}
-    - port: 2122
-      resource: pressh
-      server: ${server.pre}
 
 
