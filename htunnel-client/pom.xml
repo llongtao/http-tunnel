@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.dutertry.htunnel</groupId>
         <artifactId>htunnel</artifactId>
-        <version>1.3.0-SNAPSHOT</version>
+        <version>1.4.0-SNAPSHOT</version>
     </parent>
     <artifactId>htunnel-client</artifactId>
     <packaging>jar</packaging>
@@ -61,6 +61,15 @@
             <plugin>
                 <groupId>org.graalvm.buildtools</groupId>
                 <artifactId>native-maven-plugin</artifactId>
+                <configuration>
+                    <!-- imageName用于设置生成的二进制文件名称 -->
+                    <imageName>${project.artifactId}</imageName>
+                    <!-- mainClass用于指定main方法类路径 -->
+                    <mainClass>com.dutertry.htunnel.client.ClientApp</mainClass>
+                    <buildArgs>
+                        --no-fallback
+                    </buildArgs>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
