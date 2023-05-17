@@ -14,3 +14,5 @@ buildNumber.properties
 .settings
 application.pid
 .idea
+application-dev.yaml
+application-dev.properties

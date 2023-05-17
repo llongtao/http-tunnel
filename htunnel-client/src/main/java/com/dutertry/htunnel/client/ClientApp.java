@@ -21,6 +21,7 @@ package com.dutertry.htunnel.client;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.ApplicationPidFileWriter;
 import org.springframework.context.annotation.ImportRuntimeHints;
@@ -39,6 +40,7 @@ public class ClientApp {
     public static void main(String[] args) {
         System.out.println("run args:" + Arrays.toString(args));
         SpringApplication app = new SpringApplication(ClientApp.class);
+        app.setWebApplicationType(WebApplicationType.NONE);
         app.run(args);
     }
 

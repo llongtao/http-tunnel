@@ -7,12 +7,8 @@ public class Tunnel {
 
     private int port;
 
-    private String target;
+    private String resource;
 
     private String server;
 
-    private String proxy;
-
-
-    private int bufferSize = 1048576;
 }

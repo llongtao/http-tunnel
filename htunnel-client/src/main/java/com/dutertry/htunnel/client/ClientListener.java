@@ -19,95 +19,91 @@
  */
 package com.dutertry.htunnel.client;
 
+import com.dutertry.htunnel.client.config.Tunnel;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.PrivateKey;
-
-import com.dutertry.htunnel.client.config.Tunnel;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import java.util.Iterator;
 
 /**
  * @author Nicolas Dutertry
  */
+@Slf4j
 public class ClientListener implements Runnable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ClientListener.class);
+
 
     private int port;
 
-    private String target;
+    private String resource;
 
     private String server;
-
-    private String proxy;
-
-    private int bufferSize;
 
     private String username;
 
     private String password;
+    private Tunnel tunnel;
 
-    @Value("${base64:false}")
-    private boolean base64Encoding;
-
-    @Value("${private-key:}")
-    private String privateKeyPath;
-
-    private PrivateKey privateKey;
 
     @Value("${single:false}")
     private boolean single;
 
 
-    public ClientListener(Tunnel tunnel, PrivateKey privateKey, boolean base64Encoding,String username,String password) {
+    public ClientListener(Tunnel tunnel, String username, String password) {
         this.port = tunnel.getPort();
-        this.target = tunnel.getTarget();
+        this.resource = tunnel.getResource();
+        this.username = username;
+        this.password = password;
         this.server = tunnel.getServer();
-        this.proxy = tunnel.getProxy();
-        this.bufferSize = tunnel.getBufferSize();
-        this.privateKey = privateKey;
-        this.base64Encoding = base64Encoding;
-        this.username=username;
-        this.password=password;
-
+        this.tunnel = tunnel;
     }
 
+
+    @SneakyThrows
     public void run() {
-        String targetHost = StringUtils.substringBeforeLast(target, ":");
-        int targetPort = Integer.parseInt(StringUtils.substringAfterLast(target, ":"));
-        try (ServerSocketChannel ssc = ServerSocketChannel.open()) {
-            ssc.socket().bind(new InetSocketAddress("localhost", port));
-            LOGGER.info("绑定 localhost:{} -> {} on {}", port, target, server);
 
-            while (!Thread.currentThread().isInterrupted()) {
-                SocketChannel socketChannel = ssc.accept();
-                LOGGER.info("New connection received");
-                socketChannel.configureBlocking(false);
+        Selector serverSelector = Selector.open();
+        ServerSocketChannel localServerSocketChannel = ServerSocketChannel.open();
+        localServerSocketChannel.bind(new InetSocketAddress(port));
+        localServerSocketChannel.configureBlocking(false);
+        localServerSocketChannel.register(serverSelector, SelectionKey.OP_ACCEPT);
 
-                TunnelClient tunnelClient = new TunnelClient(socketChannel,
-                        targetHost, targetPort,
-                        server,
-                        proxy,
-                        bufferSize,
-                        base64Encoding,
-                        privateKey,
-                        username,
-                        password);
-                Thread thread = new Thread(tunnelClient);
-                thread.start();
 
-                if (single) {
-                    break;
+        log.info("绑定 localhost:{} -> {} on {}", port, resource, server);
+
+
+        while (true) {
+            try {
+                serverSelector.select();
+                Iterator<SelectionKey> iterator2 = serverSelector.selectedKeys().iterator();
+                while (iterator2.hasNext()) {
+                    SelectionKey key = iterator2.next();
+                    iterator2.remove();
+                    if (key.isAcceptable()) {
+                        ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
+                        SocketChannel localSocketChannel = serverSocketChannel.accept();
+                        localSocketChannel.configureBlocking(false);
+
+                        // 连接远程 MySQL 服务器
+                        // 注册本地 SocketChannel 和远程 SocketChannel 到 Selector 中
+
+                        log.info("客户端连接成功：{}->{} on localhost:{}", localSocketChannel.getRemoteAddress(), tunnel.getResource(), tunnel.getPort());
+
+                        new ClientChannel(localSocketChannel, tunnel, username, password).run();
+                    }
                 }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        } catch (IOException e) {
-            LOGGER.error("Error in listener loop", e);
         }
-        LOGGER.info("Listener thread terminated");
+
+
     }
 
 
