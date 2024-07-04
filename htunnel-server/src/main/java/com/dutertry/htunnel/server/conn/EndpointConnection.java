@@ -80,7 +80,7 @@ public class EndpointConnection {
 
     public void toServer(byte[] data) {
 
-        if (future == null) {
+        if (channelHandlerContext == null) {
             connectSync();
         }
         log.info("send to server:{}", data.length);
@@ -89,13 +89,8 @@ public class EndpointConnection {
         channelHandlerContext.writeAndFlush(data);
     }
 
-    public boolean isActive() {
-        return true;
-    }
-    public void close() {
 
-    }
-
+    @SuppressWarnings("AlibabaAvoidManuallyCreateThread")
     private void connectSync() {
         //连接到服务端
         try {
@@ -103,6 +98,7 @@ public class EndpointConnection {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+
 
         new Thread(() -> {
             try {
