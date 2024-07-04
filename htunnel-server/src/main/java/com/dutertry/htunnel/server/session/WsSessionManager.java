@@ -12,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WsSessionManager {
 
     private static final Map<String, WsSession> SESSION_MAP = new ConcurrentHashMap<>();
-    private static final Map<String, WsSession> SESSION_ID_MAP = new ConcurrentHashMap<>();
 
     public static void registerSession(String username, ChannelHandlerContext ctx) {
         SESSION_MAP.put(username, new WsSession(ctx,username));

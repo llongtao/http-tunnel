@@ -84,7 +84,7 @@ public class TunnelClient {
                             p.addLast(sslCtx.newHandler(ch.alloc(), uri.getHost(), port));
                         }
                         p.addLast(new HttpClientCodec(),
-                                new HttpObjectAggregator(8192),
+                                new HttpObjectAggregator(65536000),
                                 new WebSocketClientProtocolHandler(
                                         WebSocketClientHandshakerFactory.newHandshaker(
                                                 uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders())),
