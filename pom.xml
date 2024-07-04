@@ -60,13 +60,13 @@
         <module>htunnel-client</module>
         <module>htunnel-server</module>
     </modules>
-    
-    <scm>
-        <endpointConnection>scm:git:https://github.com/nicolas-dutertry/htunnel.git</endpointConnection>
-        <developerConnection>scm:git:https://github.com/nicolas-dutertry/htunnel.git</developerConnection>
-        <url>https://github.com/nicolas-dutertry/htunnel</url>
-        <tag>HEAD</tag>
-    </scm>
+<!--    -->
+<!--    <scm>-->
+<!--        <endpointConnection>scm:git:https://github.com/nicolas-dutertry/htunnel.git</endpointConnection>-->
+<!--        <developerConnection>scm:git:https://github.com/nicolas-dutertry/htunnel.git</developerConnection>-->
+<!--        <url>https://github.com/nicolas-dutertry/htunnel</url>-->
+<!--        <tag>HEAD</tag>-->
+<!--    </scm>-->
     
     <distributionManagement>
         <repository>
