@@ -21,6 +21,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.util.CharsetUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,6 +37,7 @@ import java.net.URI;
 public class TunnelClient {
 
     private final URI uri;
+    private int port;
     private final SslContext sslCtx;
 
     private Channel channel;
@@ -49,12 +51,19 @@ public class TunnelClient {
         this.username = username;
         this.password = password;
         this.uri = new URI(url);
+        this.port = uri.getPort();
         String scheme = uri.getScheme() == null ? "ws" : uri.getScheme();
         final boolean ssl = "wss".equalsIgnoreCase(scheme);
         if (ssl) {
-            sslCtx = SslContextBuilder.forClient().build();
+            sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+            if (this.port < 0) {
+                this.port = 443;
+            }
         } else {
             sslCtx = null;
+            if (this.port < 0) {
+                this.port = 80;
+            }
         }
         connect();
     }
@@ -72,7 +81,7 @@ public class TunnelClient {
                     protected void initChannel(Channel ch) {
                         ChannelPipeline p = ch.pipeline();
                         if (sslCtx != null) {
-                            p.addLast(sslCtx.newHandler(ch.alloc(), uri.getHost(), uri.getPort()));
+                            p.addLast(sslCtx.newHandler(ch.alloc(), uri.getHost(), port));
                         }
                         p.addLast(new HttpClientCodec(),
                                 new HttpObjectAggregator(8192),
@@ -83,7 +92,8 @@ public class TunnelClient {
                     }
                 });
 
-        channel = b.connect(uri.getHost(), uri.getPort()).sync().channel();
+
+        channel = b.connect(uri.getHost(), port).sync().channel();
         WebSocketClientHandler handler = channel.pipeline().get(WebSocketClientHandler.class);
 
         WsMessage wsMessage = new WsMessage();
