@@ -83,7 +83,7 @@ public class EndpointConnection {
         if (future == null) {
             connectSync();
         }
-        log.info("发送到服务:{}", data.length);
+        log.info("send to server:{}", data.length);
 
         //发送消息
         channelHandlerContext.writeAndFlush(data);

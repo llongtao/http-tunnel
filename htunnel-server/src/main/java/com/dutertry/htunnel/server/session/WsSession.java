@@ -48,8 +48,7 @@ public class WsSession {
             wsMessage.setData(bytes);
             wsMessage.setConnectionId(connectionId);
             wsMessage.setType("message");
-
-            log.info("send to client: {}",new String(wsMessage.getData()));
+            log.info("send to client: {}",wsMessage.getData().length);
             ByteBuf bf = Unpooled.wrappedBuffer(ObjectUtil.serialize(wsMessage));
             context.writeAndFlush(new BinaryWebSocketFrame(bf));
         } catch (Exception e) {
