@@ -62,7 +62,7 @@
     </modules>
     
     <scm>
-        <connection>scm:git:https://github.com/nicolas-dutertry/htunnel.git</connection>
+        <endpointConnection>scm:git:https://github.com/nicolas-dutertry/htunnel.git</endpointConnection>
         <developerConnection>scm:git:https://github.com/nicolas-dutertry/htunnel.git</developerConnection>
         <url>https://github.com/nicolas-dutertry/htunnel</url>
         <tag>HEAD</tag>

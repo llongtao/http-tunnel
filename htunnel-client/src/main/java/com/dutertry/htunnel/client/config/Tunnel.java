@@ -9,6 +9,6 @@ public class Tunnel {
 
     private String resource;
 
-    private String server;
+    private String serverName;
 
 }
