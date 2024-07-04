@@ -28,8 +28,6 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.bytes.ByteArrayDecoder;
 import io.netty.handler.codec.bytes.ByteArrayEncoder;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,7 +67,6 @@ public class ClientListener implements Runnable {
                     .channel(NioServerSocketChannel.class)
                     .option(ChannelOption.SO_BACKLOG, 128)
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
-                    .handler(new LoggingHandler(LogLevel.INFO))
 
                     .childHandler(new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
                         @Override
@@ -83,18 +80,22 @@ public class ClientListener implements Runnable {
                         }
                     });
 
-            ChannelFuture  f = b.bind(tunnel.getPort()).sync();
+            try {
+                ChannelFuture f = b.bind(tunnel.getPort()).sync();
 
-            log.info("绑定 localhost:{} -> {} on {}", port, resource, tunnel.getServerName());
+                log.info("绑定 localhost:{} -> {} on {}", port, resource, tunnel.getServerName());
 
-            f.channel().closeFuture().sync();
-        } catch (InterruptedException e) {
-            log.warn("连接中断:{}", resource);
-        } finally {
-            workerGroup.shutdownGracefully();
-            bossGroup.shutdownGracefully();
+                f.channel().closeFuture().sync();
+            } catch (InterruptedException e) {
+                log.warn("连接中断:{}", resource);
+            } finally {
+                workerGroup.shutdownGracefully();
+                bossGroup.shutdownGracefully();
+            }
+        } catch (Exception e) {
+            log.error("绑定 localhost:{} -> {} on {}失败:{}", port, resource, tunnel.getServerName(), e.getMessage());
+            throw new RuntimeException(e);
         }
-
 
     }
 

@@ -10,8 +10,6 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -52,7 +50,6 @@ public class WebSocketConfig {
                     .localAddress(new InetSocketAddress(port))
                     .childOption(ChannelOption.SO_REUSEADDR, true)
                     .childOption(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
-                    .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {

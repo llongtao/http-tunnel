@@ -7,8 +7,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.bytes.ByteArrayDecoder;
 import io.netty.handler.codec.bytes.ByteArrayEncoder;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
@@ -44,7 +42,6 @@ public class EndpointConnection {
                     @Override
                     protected void initChannel(io.netty.channel.socket.SocketChannel socketChannel) throws Exception {
                         ChannelPipeline pipeline = socketChannel.pipeline();
-                        pipeline.addLast(new LoggingHandler(LogLevel.INFO));
                         pipeline.addLast(new ByteArrayDecoder());
                         pipeline.addLast(new ByteArrayEncoder());
                         pipeline.addLast(new ChannelInboundHandlerAdapter() {

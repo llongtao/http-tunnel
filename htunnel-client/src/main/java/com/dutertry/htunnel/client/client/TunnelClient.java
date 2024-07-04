@@ -17,8 +17,6 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.*;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
@@ -75,7 +73,6 @@ public class TunnelClient {
         Bootstrap b = new Bootstrap();
         b.group(group)
                 .channel(NioSocketChannel.class)
-                .handler(new LoggingHandler(LogLevel.INFO))
                 .handler(new ChannelInitializer<Channel>() {
                     @Override
                     protected void initChannel(Channel ch) {
@@ -87,7 +84,7 @@ public class TunnelClient {
                                 new HttpObjectAggregator(65536000),
                                 new WebSocketClientProtocolHandler(
                                         WebSocketClientHandshakerFactory.newHandshaker(
-                                                uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders())),
+                                                uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(), 65536000)),
                                 new WebSocketClientHandler());
                     }
                 });
@@ -136,9 +133,8 @@ public class TunnelClient {
         wsMessage.setResource(resource);
         ByteBuf byteBuf = Unpooled.wrappedBuffer(ObjectUtil.serialize(wsMessage));
 
-        System.out.println("send to server: " + id);
         channel.writeAndFlush(new BinaryWebSocketFrame(byteBuf));
-        System.out.println("send to server success");
+        log.info("send to server: {} data:{} success", id, data.length);
     }
 
 
