@@ -67,47 +67,53 @@ public class ClientListener implements Runnable {
                     .channel(NioServerSocketChannel.class)
                     .option(ChannelOption.SO_BACKLOG, 128)
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
-
                     .childHandler(new ChannelInitializer<io.netty.channel.socket.SocketChannel>() {
                         @Override
                         public void initChannel(SocketChannel ch) {
                             ch.pipeline()
                                     .addLast(new ByteArrayDecoder())
                                     .addLast(new ByteArrayEncoder())
-                                    .addLast(
-                                            new ServerHandler()
-                                    );
+                                    .addLast(new ServerHandler());
                         }
                     });
 
-            try {
-                ChannelFuture f = b.bind(tunnel.getPort()).sync();
 
-                log.info("绑定 localhost:{} -> {} on {}", port, resource, tunnel.getServerName());
+            ChannelFuture f = b.bind(tunnel.getPort()).sync();
 
-                f.channel().closeFuture().sync();
-            } catch (InterruptedException e) {
-                log.warn("连接中断:{}", resource);
-            } finally {
-                workerGroup.shutdownGracefully();
-                bossGroup.shutdownGracefully();
-            }
+            log.info("绑定 localhost:{} -> {} on {}", port, resource, tunnel.getServerName());
+
+            f.channel().closeFuture().sync();
+
+        } catch (InterruptedException e) {
+            log.warn("连接中断:{}", resource);
         } catch (Exception e) {
             log.error("绑定 localhost:{} -> {} on {}失败:{}", port, resource, tunnel.getServerName(), e.getMessage());
             throw new RuntimeException(e);
+        } finally {
+            workerGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully();
         }
 
     }
 
 
+
     public class ServerHandler extends ChannelInboundHandlerAdapter {
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            String id = AppConnectionManager.register(ctx);
+            log.debug("{} {} channelActive ", resource, id);
+            tunnelClient.sendServer(id, resource, new byte[]{});
+        }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object bytes) throws Exception {
+
+            byte[] array = (byte[]) bytes;
             // 打印从客户端接收到的消息
-            log.debug("send from app: {}", ((byte[]) bytes).length);
+            log.debug("send from app: {}", array.length);
             String id = AppConnectionManager.register(ctx);
-            tunnelClient.sendServer(id, resource, (byte[]) bytes);
+            tunnelClient.sendServer(id, resource, array);
         }
 
         @Override

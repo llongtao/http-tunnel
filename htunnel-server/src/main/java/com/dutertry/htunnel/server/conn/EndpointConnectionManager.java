@@ -47,7 +47,7 @@ public class EndpointConnectionManager {
 
         EndpointConnection endpointConnection = null;
         try {
-            endpointConnection = new EndpointConnection(connectionId, wsSession, inetSocketAddress);
+            endpointConnection = new EndpointConnection(connectionId, wsSession, inetSocketAddress,resource);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

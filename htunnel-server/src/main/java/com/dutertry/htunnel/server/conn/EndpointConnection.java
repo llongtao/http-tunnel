@@ -19,6 +19,10 @@ public class EndpointConnection {
 
     private InetSocketAddress inetSocketAddress;
 
+    private String resource;
+    private String connectionId;
+
+
     ChannelFuture future;
 
     //配置NIO线程组
@@ -27,10 +31,12 @@ public class EndpointConnection {
 
     ChannelHandlerContext channelHandlerContext;
 
-    public EndpointConnection(String connectionId, WsSession wsSession, InetSocketAddress inetSocketAddress) throws InterruptedException {
+    public EndpointConnection(String connectionId, WsSession wsSession, InetSocketAddress inetSocketAddress, String resource) throws InterruptedException {
         this.inetSocketAddress = inetSocketAddress;
+        this.resource = resource;
+        this.connectionId = connectionId;
 
-        log.info("连接 user:{} -> {}", wsSession.getUsername(), inetSocketAddress);
+        log.info("连接 user:{} -> {} connectionId:{}", wsSession.getUsername(), resource, connectionId);
 
 
         //启动类
@@ -53,7 +59,7 @@ public class EndpointConnection {
 
                             @Override
                             public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-                                log.info("channelInactive");
+                                log.info("connectionId:{} channelInactive", connectionId);
                                 EndpointConnectionManager.removeConnection(connectionId);
                                 super.channelInactive(ctx);
                             }
@@ -83,7 +89,7 @@ public class EndpointConnection {
         if (channelHandlerContext == null) {
             connectSync();
         }
-        log.info("send to server:{}", data.length);
+        log.info("send to server:{} connectionId:{} data:{} ", resource, connectionId, data.length);
 
         //发送消息
         channelHandlerContext.writeAndFlush(data);

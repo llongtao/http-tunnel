@@ -134,7 +134,7 @@ public class TunnelClient {
         ByteBuf byteBuf = Unpooled.wrappedBuffer(ObjectUtil.serialize(wsMessage));
 
         channel.writeAndFlush(new BinaryWebSocketFrame(byteBuf));
-        log.info("send to server: {} data:{} success", id, data.length);
+        log.info("send to {} connectionId:{} data:{} success",resource, id, data.length);
     }
 
 

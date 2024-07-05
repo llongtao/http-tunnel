@@ -31,7 +31,7 @@ public class AppConnection {
 
     public void onServerData(byte[] data) {
         context.writeAndFlush(data);
-        log.info("AppConnection received {} data:{}", id, data.length);
+        log.info("App received connectionId:{}  data:{}", id, data.length);
     }
 
     public boolean isClose() {

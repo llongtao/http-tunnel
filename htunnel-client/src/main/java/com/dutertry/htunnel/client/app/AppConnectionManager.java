@@ -1,6 +1,7 @@
 package com.dutertry.htunnel.client.app;
 
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.util.AttributeKey;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -15,7 +16,12 @@ public class AppConnectionManager {
 
 
     public static String register(ChannelHandlerContext ctx){
-        AppConnection appConnection = new AppConnection(ctx);
+        String id = (String) ctx.attr(AttributeKey.valueOf("id")).get();
+        AppConnection appConnection = appConnectionMap.get(id);
+        if (appConnection != null) {
+            return id;
+        }
+        appConnection = new AppConnection(ctx);
         appConnectionMap.put(appConnection.getId(),appConnection);
         return appConnection.getId();
     }
