@@ -1,0 +1,26 @@
+spring:
+  profiles:
+    active: dev
+
+logging.pattern.console: '%d{yyyy-MM-dd HH:mm:ss} [%5p] %m%n'
+
+logging:
+  level:
+    root: info
+
+#tunnel:
+#  servers:
+#    def: ws://localhost:8081/websocket/message
+#  username: abc
+#  password: 123
+#  tunnels:
+#    - port: 30122
+#      resource: localssh
+#      serverName: def
+#    - port: 30123
+#      resource: localhttp
+#      serverName: def
+#    - port: 30124
+#      resource: localhttp1
+#      serverName: def
+

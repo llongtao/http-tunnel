@@ -65,23 +65,17 @@ tunnel:
   #账号密码
   username: lilongtao
   password: xxxxxx
+  servers:
+    defServer: ws://xxxxxx.com/websocket/message
   tunnels:
       #监听本机端口
     - port: 8888
       #htunnel-server定义的资源名
       resource: git
-      #htunnel-server地址
-      server: ws://xx.com/message
+      #tunnel.servers处配置的defServer
+      serverName: defServer
       #其他按此规则添加
-    - port: 3306
-      resource: mysql
-      server:  ws://xx.com/message
-    - port: 13306
-      resource: premysql
-      server:  ws://xx.com/message
-    - port: 22
-      resource: ssh
-      server:  ws://xx.com/message
+    
       
 #运行
 java -jar htunnel-client-version.jar

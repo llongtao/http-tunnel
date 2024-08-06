@@ -1,4 +1,4 @@
-package com.dutertry.htunnel.client;
+package com.dutertry.htunnel.client.client;
 
 
 import com.dutertry.htunnel.client.config.Tunnel;
@@ -10,9 +10,10 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import java.security.PrivateKey;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @EnableConfigurationProperties(TunnelProperties.class)
 @Slf4j
@@ -38,8 +39,15 @@ public class ClientRunner implements ApplicationRunner {
             List<Tunnel> tunnels = tunnelProperties.getTunnels();
             String username = tunnelProperties.getUsername();
             String password = tunnelProperties.getPassword();
+            Map<String, String> servers = tunnelProperties.getServers();
+            Map<String, TunnelClient> clientMap = new HashMap<>();
+            for (Map.Entry<String, String> entry : servers.entrySet()) {
+                clientMap.put(entry.getKey(),new TunnelClient(entry.getValue(),username,password));
+            }
+
             tunnels.forEach(tunnel -> {
-                Thread thread = new Thread(new ClientListener(tunnel, username, password));
+                TunnelClient tunnelClient = clientMap.get(tunnel.getServerName());
+                Thread thread = new Thread(new ClientListener(tunnel, tunnelClient));
                 threadList.add(thread);
                 thread.start();
             });

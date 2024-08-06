@@ -4,10 +4,11 @@ import com.dutertry.htunnel.common.crypto.CryptoUtils;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+
 import java.io.IOException;
 import java.security.PrivateKey;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Data
@@ -25,6 +26,8 @@ public class TunnelProperties {
     private PrivateKey privateKey;
 
     private List<Tunnel> tunnels;
+
+    private Map<String,String> servers;
 
 
     public PrivateKey getPrivateKey() {
