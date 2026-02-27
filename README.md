@@ -148,7 +148,7 @@ cd go
 - `configs/agent.yaml`
 - `start-agent.sh` / `start-agent.ps1`
 - `start-ui.sh` / `start-ui.ps1`
-- `start.sh` / `start.ps1`（兼容入口，默认启动 agent）
+- `start.sh` / `start.ps1`（默认优先启动 UI，不存在 UI 时回退到 agent）
 
 示例（mac）：
 ```bash

@@ -82,7 +82,11 @@ SH
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${SCRIPT_DIR}"
-./start-agent.sh
+if [ -x "./start-ui.sh" ]; then
+  ./start-ui.sh
+else
+  ./start-agent.sh
+fi
 SH
   chmod +x "${pkg}/start.sh"
 
@@ -116,7 +120,11 @@ PS1
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
-./start-agent.ps1
+if (Test-Path .\start-ui.ps1) {
+  .\start-ui.ps1
+} else {
+  .\start-agent.ps1
+}
 PS1
 
   if [[ "${INCLUDE_UI}" == "1" ]]; then
