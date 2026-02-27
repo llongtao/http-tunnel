@@ -253,3 +253,5 @@ GitHub Actions 已切换为 Go 流水线：`.github/workflows/go.yml`。
 - `windows-amd64`
 - `darwin-amd64`
 - `darwin-arm64`
+
+当推送 `v*` tag（如 `v2.1.0`）时，会自动把上述产物作为附件上传到 GitHub Release。
