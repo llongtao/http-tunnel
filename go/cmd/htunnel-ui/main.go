@@ -62,7 +62,6 @@ func requireAdminAtStartup() error {
 		}
 		return nil
 	}
-
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("root/admin privilege required, please start with sudo")
 	}

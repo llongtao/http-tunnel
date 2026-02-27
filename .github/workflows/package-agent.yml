@@ -41,7 +41,7 @@ jobs:
         shell: bash
         working-directory: go
         env:
-          INCLUDE_UI: "0"
+          INCLUDE_UI: "1"
         run: ./scripts/release.sh
 
       - name: Package (Windows)
@@ -49,7 +49,7 @@ jobs:
         shell: pwsh
         working-directory: go
         env:
-          INCLUDE_UI: "0"
+          INCLUDE_UI: "1"
         run: .\scripts\release.ps1
 
       - name: Upload Artifact

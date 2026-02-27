@@ -83,7 +83,11 @@ cd "$SCRIPT_DIR"
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
-./start-agent.sh
+if [ -x "./start-ui.sh" ]; then
+  ./start-ui.sh
+else
+  ./start-agent.sh
+fi
 '@ | Set-Content -Path (Join-Path $pkgDir "start.sh") -NoNewline
 
   @'
@@ -102,7 +106,11 @@ Set-Location $scriptDir
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
-./start-agent.ps1
+if (Test-Path .\start-ui.ps1) {
+  .\start-ui.ps1
+} else {
+  .\start-agent.ps1
+}
 '@ | Set-Content -Path (Join-Path $pkgDir "start.ps1") -NoNewline
 
   if ($includeUI -eq "1") {
