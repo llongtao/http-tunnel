@@ -36,11 +36,12 @@ go run ./cmd/htunnel-server -config configs/server.yaml
 ```
 - Docker 部署：
 ```bash
-docker build -t htunnel-server:latest .
+docker pull loongtall/htunnel-server:latest
 docker run --rm -p 8082:8082 \
   -v $(pwd)/go/configs/server.yaml:/app/configs/server.yaml:ro \
-  htunnel-server:latest
+  loongtall/htunnel-server:latest
 ```
+  - 如果要固定版本，可把 `latest` 换成具体 tag（如 `v2.1.3`）
 
 ### 2. 配置服务端
 编辑 `go/configs/server.yaml`，至少确认三项：
@@ -49,6 +50,8 @@ docker run --rm -p 8082:8082 \
 - `auth.users.<name>.route_cidrs`：该用户下发到客户端的网段（用于本地路由）
 - `network.vip_map`：虚拟 IP 到真实目标 IP 的映射  
 - `network.allow_direct_ip_fallback`：是否允许未命中 `vip_map` 时直连目标 IP（默认 `false`）
+  - `false`：只允许访问白名单映射（更安全，推荐生产）
+  - `true`：`vip_map` 未命中时直接访问 `dst_vip`（更灵活，但权限边界更宽）
 
 示例：
 ```yaml
@@ -67,12 +70,13 @@ network:
 说明：如果用户未配置 `route_cidrs`，服务端会默认把 `vip_map` 中的 VIP 按 `/32` 下发给客户端。
 
 ### 3. 运行 Agent
-- 推荐：启动桌面端 `htunnel-ui`，填写服务地址+账号密码，点击“连接”
-- 命令行：直接运行
+- 从 GitHub Release 页面下载对应平台压缩包并解压  
+  Release: `https://github.com/llongtao/http-tunnel/releases`
+- 进入解压目录，执行：
 ```bash
-cd go
-go run ./cmd/htunnel-agent -config configs/agent.yaml
+./start.sh
 ```
+  - `start.sh` 默认优先启动 UI（需要管理员权限），若 UI 不存在则回退启动 agent
   - 当 `auth.token` 为空时，agent 会使用 `auth.username/password` 调用 `/api/agent/login` 自动获取 token 和路由配置
 
 ## 目录
