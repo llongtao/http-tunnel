@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -68,7 +69,7 @@ func (s *Service) handleAgentLogin(w http.ResponseWriter, r *http.Request) {
 	resp := loginResponse{
 		Token:      token,
 		AgentID:    username,
-		WSURL:      inferWSURL(r, s.cfg.Listen.Path, s.cfg.Listen.TLS.Enabled),
+		WSURL:      resolveWSURL(r, s.cfg.Listen.PublicWSURL, s.cfg.Listen.Path, s.cfg.Listen.TLS.Enabled),
 		RouteCIDRs: resolveRouteCIDRs(account, s.cfg.Network.VIPMap),
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -86,12 +87,21 @@ func matchPassword(account UserAccount, password string) bool {
 	return false
 }
 
-func inferWSURL(r *http.Request, wsPath string, tlsEnabled bool) string {
+func resolveWSURL(r *http.Request, publicWSURL string, wsPath string, tlsEnabled bool) string {
+	if ws := strings.TrimSpace(publicWSURL); ws != "" {
+		if normalized := normalizePublicWSURL(ws, wsPath); normalized != "" {
+			return normalized
+		}
+	}
+	return inferWSURLFromRequest(r, wsPath, tlsEnabled)
+}
+
+func inferWSURLFromRequest(r *http.Request, wsPath string, tlsEnabled bool) string {
 	scheme := "ws"
 	if tlsEnabled {
 		scheme = "wss"
 	}
-	if xf := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); xf != "" {
+	if xf := firstHeaderValue(r.Header.Get("X-Forwarded-Proto")); xf != "" {
 		switch strings.ToLower(xf) {
 		case "https":
 			scheme = "wss"
@@ -102,11 +112,67 @@ func inferWSURL(r *http.Request, wsPath string, tlsEnabled bool) string {
 		scheme = "wss"
 	}
 
-	host := strings.TrimSpace(r.Host)
+	host := strings.TrimSpace(firstHeaderValue(r.Header.Get("X-Forwarded-Host")))
+	if host == "" {
+		host = strings.TrimSpace(r.Host)
+	}
+	if !hostHasPort(host) {
+		if p := firstHeaderValue(r.Header.Get("X-Forwarded-Port")); p != "" {
+			host = net.JoinHostPort(host, p)
+		}
+	}
 	if host == "" {
 		host = "127.0.0.1:8082"
 	}
 	return fmt.Sprintf("%s://%s%s", scheme, host, wsPath)
+}
+
+func normalizePublicWSURL(raw string, wsPath string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	case "ws", "wss":
+	default:
+		return ""
+	}
+	if u.Path == "" || u.Path == "/" {
+		u.Path = wsPath
+	}
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
+}
+
+func firstHeaderValue(v string) string {
+	if idx := strings.Index(v, ","); idx >= 0 {
+		return strings.TrimSpace(v[:idx])
+	}
+	return strings.TrimSpace(v)
+}
+
+func hostHasPort(host string) bool {
+	if host == "" {
+		return false
+	}
+	if _, _, err := net.SplitHostPort(host); err == nil {
+		return true
+	}
+	// net.SplitHostPort fails for plain hostnames and ipv6-without-brackets.
+	if strings.Count(host, ":") == 0 {
+		return false
+	}
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		return false
+	}
+	// host containing ':' but not split-able is treated as already having port.
+	return true
 }
 
 func resolveRouteCIDRs(account UserAccount, vipMap map[string]string) []string {
@@ -157,4 +223,3 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
-

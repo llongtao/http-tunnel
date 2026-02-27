@@ -2,6 +2,8 @@ listen:
   addr: ":8082"
   path: "/websocket/message"
   login_path: "/api/agent/login"
+  # optional: explicit public ws endpoint returned to clients (recommended behind reverse proxy)
+  public_ws_url: ""
   tls:
     enabled: false
     cert_file: ""
@@ -22,6 +24,8 @@ auth:
         - "10.0.2.123/32"
 
 network:
+  # if true, unmapped vip will fallback to direct dst ip (only ipv4)
+  allow_direct_ip_fallback: false
   vip_map:
     "10.2.2.123": "172.28.52.13"
     "10.0.2.123": "172.28.52.13"

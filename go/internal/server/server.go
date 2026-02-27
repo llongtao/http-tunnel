@@ -178,9 +178,9 @@ func (s *wsSession) handleOpen(env *protocol.Envelope) {
 		_ = s.send(&protocol.Envelope{Type: protocol.TypeOpenResp, ConnID: env.ConnID, Ok: false, Reason: "duplicate conn_id"})
 		return
 	}
-	realIP, ok := s.cfg.Network.VIPMap[env.DstVIP]
-	if !ok {
-		_ = s.send(&protocol.Envelope{Type: protocol.TypeOpenResp, ConnID: env.ConnID, Ok: false, Reason: "vip not mapped"})
+	realIP, err := s.resolveTargetIP(env.DstVIP)
+	if err != nil {
+		_ = s.send(&protocol.Envelope{Type: protocol.TypeOpenResp, ConnID: env.ConnID, Ok: false, Reason: err.Error()})
 		return
 	}
 	dst := net.JoinHostPort(realIP, strconv.Itoa(int(env.DstPort)))
@@ -194,6 +194,20 @@ func (s *wsSession) handleOpen(env *protocol.Envelope) {
 	log.Printf("open conn agent=%s conn_id=%s vip=%s:%d real=%s", s.agent, env.ConnID, env.DstVIP, env.DstPort, dst)
 
 	go s.pipeRemoteToAgent(env.ConnID, remote)
+}
+
+func (s *wsSession) resolveTargetIP(dstVIP string) (string, error) {
+	if realIP, ok := s.cfg.Network.VIPMap[dstVIP]; ok {
+		return realIP, nil
+	}
+	if !s.cfg.Network.AllowDirectIPFallback {
+		return "", errors.New("vip not mapped")
+	}
+	ip := net.ParseIP(dstVIP)
+	if ip == nil || ip.To4() == nil {
+		return "", errors.New("invalid direct ip")
+	}
+	return dstVIP, nil
 }
 
 func (s *wsSession) handleData(env *protocol.Envelope) {

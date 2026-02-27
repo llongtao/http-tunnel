@@ -50,6 +50,56 @@ func TestHandleAgentLoginSuccess(t *testing.T) {
 	}
 }
 
+func TestHandleAgentLoginUsesPublicWSURL(t *testing.T) {
+	var cfg Config
+	cfg.normalize()
+	cfg.Listen.Path = "/websocket/message"
+	cfg.Listen.PublicWSURL = "wss://tunnelv2.sms-uat.gree.com:30443/websocket/message"
+	cfg.Auth.JWT.Secret = "change-me"
+	cfg.Auth.Users["alice"] = UserAccount{Password: "pass123"}
+
+	svc := New(cfg)
+	body := bytes.NewBufferString(`{"username":"alice","password":"pass123"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/agent/login", body)
+	req.Host = "127.0.0.1:8082"
+	rec := httptest.NewRecorder()
+
+	svc.handleAgentLogin(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200 got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp loginResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.WSURL != "wss://tunnelv2.sms-uat.gree.com:30443/websocket/message" {
+		t.Fatalf("unexpected ws_url: %s", resp.WSURL)
+	}
+}
+
+func TestHandleAgentLoginUsesForwardedHostAndPort(t *testing.T) {
+	var cfg Config
+	cfg.normalize()
+	cfg.Auth.JWT.Secret = "change-me"
+	cfg.Auth.Users["alice"] = UserAccount{Password: "pass123"}
+
+	svc := New(cfg)
+	body := bytes.NewBufferString(`{"username":"alice","password":"pass123"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/agent/login", body)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("X-Forwarded-Host", "tunnelv2.sms-uat.gree.com")
+	req.Header.Set("X-Forwarded-Port", "30443")
+	rec := httptest.NewRecorder()
+
+	svc.handleAgentLogin(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200 got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp loginResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.WSURL != "wss://tunnelv2.sms-uat.gree.com:30443/websocket/message" {
+		t.Fatalf("unexpected ws_url: %s", resp.WSURL)
+	}
+}
+
 func TestHandleAgentLoginFallbackRouteFromVIPMap(t *testing.T) {
 	var cfg Config
 	cfg.normalize()
@@ -90,4 +140,3 @@ func TestHandleAgentLoginUnauthorized(t *testing.T) {
 		t.Fatalf("expected status 401 got %d", rec.Code)
 	}
 }
-

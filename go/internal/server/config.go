@@ -10,10 +10,11 @@ type UserAccount struct {
 
 type Config struct {
 	Listen struct {
-		Addr      string `yaml:"addr"`
-		Path      string `yaml:"path"`
-		LoginPath string `yaml:"login_path"`
-		TLS       struct {
+		Addr        string `yaml:"addr"`
+		Path        string `yaml:"path"`
+		LoginPath   string `yaml:"login_path"`
+		PublicWSURL string `yaml:"public_ws_url"`
+		TLS         struct {
 			Enabled  bool   `yaml:"enabled"`
 			CertFile string `yaml:"cert_file"`
 			KeyFile  string `yaml:"key_file"`
@@ -30,7 +31,8 @@ type Config struct {
 		Users map[string]UserAccount `yaml:"users"`
 	} `yaml:"auth"`
 	Network struct {
-		VIPMap map[string]string `yaml:"vip_map"`
+		VIPMap                map[string]string `yaml:"vip_map"`
+		AllowDirectIPFallback bool              `yaml:"allow_direct_ip_fallback"`
 	} `yaml:"network"`
 	Timeouts struct {
 		DialTimeoutSec  int `yaml:"dial_timeout_sec"`
