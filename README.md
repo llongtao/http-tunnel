@@ -259,3 +259,8 @@ GitHub Actions 已切换为 Go 流水线：`.github/workflows/go.yml`。
 - `darwin-arm64`
 
 当推送 `v*` tag（如 `v2.1.0`）时，会自动把上述产物作为附件上传到 GitHub Release。
+
+新增服务端镜像发布流水线：`.github/workflows/publish-server-image.yml`。
+- 触发：推送 `v*` tag 或手动触发
+- 产物：`loongtall/htunnel-server:<tagname>`（例如 `v2.1.0`）和 `loongtall/htunnel-server:latest`
+- 需要仓库 Secret：`DOCKERHUB_TOKEN`（Docker Hub Access Token）
