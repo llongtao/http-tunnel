@@ -1,13 +1,19 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -24,8 +30,10 @@ func (s *Service) Run(ctx context.Context) error {
 	if s.cfg.Server.URL == "" {
 		return fmt.Errorf("server.url is required")
 	}
-	if s.cfg.Auth.Token == "" {
-		return fmt.Errorf("auth.token is required")
+	if strings.TrimSpace(s.cfg.Auth.Token) == "" {
+		if err := s.loginWithPassword(); err != nil {
+			return err
+		}
 	}
 	if err := s.cfg.EnsureRouteCommands(runtime.GOOS); err != nil {
 		return err
@@ -88,4 +96,103 @@ func WaitForSocket(ctx context.Context, addr string, timeout time.Duration) erro
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+}
+
+type loginResponse struct {
+	Token      string   `json:"token"`
+	AgentID    string   `json:"agent_id"`
+	WSURL      string   `json:"ws_url"`
+	RouteCIDRs []string `json:"route_cidrs"`
+}
+
+func (s *Service) loginWithPassword() error {
+	username := strings.TrimSpace(s.cfg.Auth.Username)
+	password := s.cfg.Auth.Password
+	if username == "" || strings.TrimSpace(password) == "" {
+		return fmt.Errorf("auth.token is required or set auth.username/auth.password for login")
+	}
+
+	baseURL := strings.TrimSpace(s.cfg.Server.BaseURL)
+	if baseURL == "" {
+		baseURL = inferHTTPBaseFromWSURL(s.cfg.Server.URL)
+	}
+	if baseURL == "" {
+		return fmt.Errorf("cannot infer server base url; set server.base_url")
+	}
+	loginURL := strings.TrimRight(baseURL, "/") + "/api/agent/login"
+
+	payload := map[string]string{
+		"username": username,
+		"password": password,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal login payload failed: %w", err)
+	}
+
+	timeout := time.Duration(s.cfg.Server.ConnectTimeoutSec) * time.Second
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	client := &http.Client{Timeout: timeout}
+	req, err := http.NewRequest(http.MethodPost, loginURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build login request failed: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("login request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("login failed status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+
+	var lr loginResponse
+	if err := json.Unmarshal(respBody, &lr); err != nil {
+		return fmt.Errorf("parse login response failed: %w", err)
+	}
+	if strings.TrimSpace(lr.Token) == "" {
+		return fmt.Errorf("login response missing token")
+	}
+
+	s.cfg.Auth.Token = strings.TrimSpace(lr.Token)
+	if strings.TrimSpace(lr.AgentID) != "" {
+		s.cfg.Agent.ID = strings.TrimSpace(lr.AgentID)
+	} else if s.cfg.Agent.ID == "" {
+		s.cfg.Agent.ID = username
+	}
+	if strings.TrimSpace(lr.WSURL) != "" {
+		s.cfg.Server.URL = strings.TrimSpace(lr.WSURL)
+	}
+	if len(lr.RouteCIDRs) > 0 {
+		s.cfg.Tun.RouteCIDRs = append([]string(nil), lr.RouteCIDRs...)
+	}
+	log.Printf("login success: user=%s ws=%s routes=%d", username, s.cfg.Server.URL, len(s.cfg.Tun.RouteCIDRs))
+	return nil
+}
+
+func inferHTTPBaseFromWSURL(wsURL string) string {
+	u, err := url.Parse(strings.TrimSpace(wsURL))
+	if err != nil {
+		return ""
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "ws":
+		u.Scheme = "http"
+	case "wss":
+		u.Scheme = "https"
+	case "http", "https":
+	default:
+		return ""
+	}
+	u.Path = ""
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return strings.TrimRight(u.String(), "/")
 }

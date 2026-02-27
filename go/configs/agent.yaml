@@ -6,11 +6,11 @@ server:
   connect_timeout_sec: 10
 
 auth:
-  # token can be auto refreshed by desktop UI on connect
+  # token can be refreshed by desktop UI or by agent startup login (when username/password are set)
   token: ""
   username: "alice"
-  # plaintext password is not recommended; desktop UI will persist encrypted password_enc
-  password: ""
+  # demo password; replace in production
+  password: "pass123"
   password_enc: ""
 
 agent:

@@ -71,6 +71,7 @@ network:
 cd go
 go run ./cmd/htunnel-agent -config configs/agent.yaml
 ```
+  - 当 `auth.token` 为空时，agent 会使用 `auth.username/password` 调用 `/api/agent/login` 自动获取 token 和路由配置
 
 ## 目录
 - `go/configs/server.yaml`：服务端配置样例
@@ -200,11 +201,12 @@ server:
 auth:
   token: "<jwt-token>"
   username: "alice"
-  password: ""
+  password: "pass123"
   password_enc: "<encrypted-by-ui>"
 ```
 
 说明：桌面 UI 会把密码加密后写入 `password_enc`，不再持久化明文 `password`。
+当通过命令行直接启动 agent 时，若 `token` 为空，会尝试使用 `username/password` 自动登录获取 token。
 
 可用内置工具生成测试 token：
 ```bash
