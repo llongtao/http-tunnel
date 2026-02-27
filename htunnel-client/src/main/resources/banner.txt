@@ -1,6 +1,0 @@
-${AnsiColor.BRIGHT_RED}
-::
-::  http-tunnel 客户端
-::  请妥善保管账号严禁外传
-::
-${AnsiColor.DEFAULT}

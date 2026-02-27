@@ -1,0 +1,54 @@
+name: Package Agent
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-amd64
+            runner: windows-latest
+            shell: pwsh
+            release_cmd: .\scripts\release.ps1
+            artifact: go/dist/htunnel-agent-windows-amd64.zip
+          - name: macos-amd64
+            runner: macos-13
+            shell: bash
+            release_cmd: ./scripts/release.sh
+            artifact: go/dist/htunnel-agent-darwin-amd64.tar.gz
+          - name: macos-arm64
+            runner: macos-14
+            shell: bash
+            release_cmd: ./scripts/release.sh
+            artifact: go/dist/htunnel-agent-darwin-arm64.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Package
+        shell: ${{ matrix.shell }}
+        working-directory: go
+        env:
+          INCLUDE_UI: "0"
+        run: ${{ matrix.release_cmd }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error

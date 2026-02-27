@@ -1,0 +1,33 @@
+listen:
+  addr: ":8082"
+  path: "/websocket/message"
+  login_path: "/api/agent/login"
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+
+auth:
+  jwt:
+    secret: "change-me"
+    issuer: "htunnel"
+    audience: "htunnel-agent"
+    clock_skew_sec: 30
+    expire_hour: 24
+  users:
+    alice:
+      password: "pass123"
+      route_cidrs:
+        - "10.2.2.123/32"
+        - "10.0.2.123/32"
+
+network:
+  vip_map:
+    "10.2.2.123": "172.28.52.13"
+    "10.0.2.123": "172.28.52.13"
+
+timeouts:
+  dial_timeout_sec: 10
+  write_timeout_sec: 30
+  idle_sec: 120
+  ping_interval_sec: 20

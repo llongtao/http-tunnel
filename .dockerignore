@@ -1,0 +1,8 @@
+.git
+.github
+.idea
+legacy
+go/dist
+go/bin
+**/*.test
+**/*.out
