@@ -48,6 +48,7 @@ docker run --rm -p 8082:8082 \
 - `auth.users`：客户端登录账号密码
 - `auth.users.<name>.route_cidrs`：该用户下发到客户端的网段（用于本地路由）
 - `network.vip_map`：虚拟 IP 到真实目标 IP 的映射  
+- `network.allow_direct_ip_fallback`：是否允许未命中 `vip_map` 时直连目标 IP（默认 `false`）
 
 示例：
 ```yaml
@@ -58,6 +59,7 @@ auth:
       route_cidrs:
         - "10.2.2.123/32"
 network:
+  allow_direct_ip_fallback: false
   vip_map:
     "10.2.2.123": "172.28.52.13"
 ```
@@ -171,10 +173,13 @@ cd go\dist\htunnel-agent-windows-amd64
 `go/configs/server.yaml`:
 ```yaml
 network:
+  allow_direct_ip_fallback: false
   vip_map:
     "10.2.2.123": "192.168.0.25"
 ```
 含义：访问 `10.2.2.123:<port>` 会被转发到 `192.168.0.25:<port>`。
+
+可选：若将 `allow_direct_ip_fallback` 设为 `true`，当 `vip_map` 中不存在目标时，服务端会直接把 `dst_vip` 当作真实 IPv4 访问。
 
 ### 认证
 服务端配置 JWT 参数 + 账号：
@@ -195,6 +200,22 @@ auth:
 桌面端调用 `POST /api/agent/login`：
 - 入参：`username`、`password`
 - 出参：`token`、`agent_id`、`ws_url`、`route_cidrs`
+
+`ws_url` 的生成逻辑（服务端）：
+1. 若配置了 `listen.public_ws_url`，直接返回该地址（推荐）
+2. 否则根据请求头推断：
+   - `X-Forwarded-Proto` -> `ws/wss`
+   - `X-Forwarded-Host` / `Host` -> 域名
+   - `X-Forwarded-Port` -> 端口（仅当 Host 不带端口时）
+
+反向代理场景最佳实践：
+- 最稳妥：在 `server.yaml` 显式配置 `listen.public_ws_url`
+- 同时让代理透传 `X-Forwarded-Proto`、`X-Forwarded-Host`、`X-Forwarded-Port`
+- `public_ws_url` 建议写外网可访问地址，例如：
+```yaml
+listen:
+  public_ws_url: "wss://tunnelv2.sms-uat.gree.com:30443/websocket/message"
+```
 
 agent 仍支持直接写 token（兼容旧方式）：
 ```yaml

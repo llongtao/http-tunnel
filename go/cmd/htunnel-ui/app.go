@@ -128,7 +128,11 @@ func (a *App) Connect(req LoginRequest) (StatusView, error) {
 	if strings.TrimSpace(loginResp.AgentID) != "" {
 		cfg.Agent.ID = strings.TrimSpace(loginResp.AgentID)
 	}
-	cfg.Server.URL = strings.TrimSpace(loginResp.WSURL)
+	if ws, err := wsURLFromServerBase(cfg.Server.BaseURL); err == nil {
+		cfg.Server.URL = ws
+	} else {
+		cfg.Server.URL = strings.TrimSpace(loginResp.WSURL)
+	}
 	if cfg.Server.URL == "" {
 		cfg.Server.URL = inferWSURLFromServerBase(cfg.Server.BaseURL)
 	}
@@ -317,21 +321,32 @@ func normalizeServerBaseURL(raw string) (string, error) {
 }
 
 func inferWSURLFromServerBase(serverBase string) string {
+	if ws, err := wsURLFromServerBase(serverBase); err == nil {
+		return ws
+	}
+	return "ws://127.0.0.1:8082/websocket/message"
+}
+
+func wsURLFromServerBase(serverBase string) (string, error) {
 	u, err := url.Parse(serverBase)
 	if err != nil {
-		return "ws://127.0.0.1:8082/websocket/message"
+		return "", err
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "https":
 		u.Scheme = "wss"
-	default:
+	case "http":
 		u.Scheme = "ws"
+	case "wss", "ws":
+		// keep as-is
+	default:
+		return "", fmt.Errorf("unsupported scheme: %s", u.Scheme)
 	}
 	u.Path = "/websocket/message"
 	u.RawPath = ""
 	u.RawQuery = ""
 	u.Fragment = ""
-	return u.String()
+	return u.String(), nil
 }
 
 func parseLoginErrorMessage(body []byte) string {

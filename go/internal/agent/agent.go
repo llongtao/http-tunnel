@@ -166,7 +166,9 @@ func (s *Service) loginWithPassword() error {
 	} else if s.cfg.Agent.ID == "" {
 		s.cfg.Agent.ID = username
 	}
-	if strings.TrimSpace(lr.WSURL) != "" {
+	if ws, err := inferWSFromHTTPBase(baseURL); err == nil {
+		s.cfg.Server.URL = ws
+	} else if strings.TrimSpace(lr.WSURL) != "" {
 		s.cfg.Server.URL = strings.TrimSpace(lr.WSURL)
 	}
 	if len(lr.RouteCIDRs) > 0 {
@@ -195,4 +197,26 @@ func inferHTTPBaseFromWSURL(wsURL string) string {
 	u.RawQuery = ""
 	u.Fragment = ""
 	return strings.TrimRight(u.String(), "/")
+}
+
+func inferWSFromHTTPBase(baseURL string) (string, error) {
+	u, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return "", err
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	case "ws", "wss":
+		// keep as-is
+	default:
+		return "", fmt.Errorf("unsupported scheme: %s", u.Scheme)
+	}
+	u.Path = "/websocket/message"
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String(), nil
 }
