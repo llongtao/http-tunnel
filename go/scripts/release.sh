@@ -94,9 +94,6 @@ SH
     cat > "${pkg}/start-ui.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$(id -u)" -ne 0 ]; then
-  exec sudo "$0" "$@"
-fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${SCRIPT_DIR}"
 ./bin/htunnel-ui -config ./configs/agent.yaml
@@ -130,11 +127,6 @@ PS1
   if [[ "${INCLUDE_UI}" == "1" ]]; then
     cat > "${pkg}/start-ui.ps1" <<'PS1'
 $ErrorActionPreference = "Stop"
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-  Start-Process -FilePath "powershell" -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`""
-  exit
-}
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
 ./bin/htunnel-ui.exe -config ./configs/agent.yaml
