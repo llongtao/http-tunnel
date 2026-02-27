@@ -20,11 +20,11 @@ jobs:
             artifact: go/dist/htunnel-agent-windows-amd64.zip
           - name: macos-amd64
             os: darwin
-            runner: macos-13
+            runner: macos-15-intel
             artifact: go/dist/htunnel-agent-darwin-amd64.tar.gz
           - name: macos-arm64
             os: darwin
-            runner: macos-14
+            runner: macos-15
             artifact: go/dist/htunnel-agent-darwin-arm64.tar.gz
 
     steps:
