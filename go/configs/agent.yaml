@@ -1,0 +1,38 @@
+server:
+  # ws url used by agent runtime
+  url: "ws://127.0.0.1:8082/websocket/message"
+  # base url used by desktop UI login API
+  base_url: "http://127.0.0.1:8082"
+  connect_timeout_sec: 10
+
+auth:
+  # token can be auto refreshed by desktop UI on connect
+  token: ""
+  username: "alice"
+  # plaintext password is not recommended; desktop UI will persist encrypted password_enc
+  password: ""
+  password_enc: ""
+
+agent:
+  id: "alice"
+  version: "0.1.0"
+
+socks:
+  listen: "127.0.0.1:1080"
+
+tun:
+  enabled: true
+  binary: ""
+  name: "utun9"
+  addr: "10.2.2.2"
+  gateway: "10.2.2.1"
+  mask: "255.255.255.0"
+  route_cidrs:
+    - "10.2.2.123/32"
+  extra_args: []
+  auto_route_commands: []
+  auto_route_cleanup_commands: []
+
+runtime:
+  ping_interval_sec: 20
+  write_timeout_sec: 30

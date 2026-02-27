@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HTunnel Agent</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>HTunnel Agent</h1>
+      <p class="meta" id="configPath"></p>
+
+      <section class="card">
+        <label>服务地址</label>
+        <input id="serverAddr" type="text" placeholder="http://127.0.0.1:8082" />
+
+        <label>账号</label>
+        <input id="username" type="text" placeholder="alice" />
+
+        <label>密码</label>
+        <input id="password" type="password" placeholder="password" />
+
+        <div class="actions">
+          <button id="btnToggle">连接</button>
+          <button id="btnRefresh">刷新状态</button>
+        </div>
+        <p class="status" id="statusText">状态：未知</p>
+      </section>
+
+      <p id="msg" class="msg"></p>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+

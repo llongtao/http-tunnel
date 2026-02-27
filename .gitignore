@@ -16,3 +16,13 @@ application.pid
 .idea
 application-dev.yaml
 application-dev.properties
+# Go
+*.test
+*.out
+go/bin/
+go/dist/
+go/htunnel-agent
+go/htunnel-server
+go/htunnel-ui
+.htunnel-ui.key
+go/configs/.htunnel-ui.key

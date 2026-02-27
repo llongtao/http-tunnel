@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package tunnel;
+
+message Envelope {
+  string version = 1;
+  string type = 2;
+  string request_id = 3;
+  string conn_id = 4;
+
+  string token = 5;
+  string agent_id = 6;
+  string agent_version = 7;
+
+  string dst_vip = 8;
+  uint32 dst_port = 9;
+  string src_addr = 10;
+
+  bytes payload = 11;
+  string reason = 12;
+  int64 ts = 13;
+  uint32 seq = 14;
+  bool ok = 15;
+}

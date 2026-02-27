@@ -1,0 +1,92 @@
+:root {
+  --bg: #f6f7fb;
+  --card: #ffffff;
+  --line: #dde3ee;
+  --text: #14213d;
+  --muted: #5f6b85;
+  --accent: #0f766e;
+  --accent-hover: #0a5a55;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 0 0, #d7e3ff 0%, var(--bg) 45%);
+  color: var(--text);
+}
+
+.app {
+  width: min(620px, 94vw);
+  margin: 14px auto;
+}
+
+h1 {
+  margin: 0 0 8px;
+}
+
+.meta {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 8px 24px rgba(10, 28, 61, 0.06);
+}
+
+label {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input,
+button {
+  width: 100%;
+  border-radius: 10px;
+}
+
+input {
+  border: 1px solid var(--line);
+  padding: 10px;
+  background: #fff;
+  color: var(--text);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+.status,
+.msg {
+  margin: 10px 0 0;
+}
+
+.msg {
+  color: #b3261e;
+  min-height: 18px;
+}
