@@ -114,13 +114,13 @@ docker run --rm -p 8082:8082 \
 启动桌面端：
 ```bash
 cd go
-go run -tags "desktop,production" ./cmd/htunnel-ui -config configs/agent.yaml
+sudo go run -tags "desktop,production" ./cmd/htunnel-ui -config configs/agent.yaml
 ```
 
 macOS 如果出现 `Undefined symbols ... _OBJC_CLASS_$_UTType`，请加上：
 ```bash
 cd go
-CGO_LDFLAGS='-framework UniformTypeIdentifiers' go run -tags "desktop,production" ./cmd/htunnel-ui -config configs/agent.yaml
+sudo CGO_LDFLAGS='-framework UniformTypeIdentifiers' go run -tags "desktop,production" ./cmd/htunnel-ui -config configs/agent.yaml
 ```
 
 或使用根目录命令：
@@ -162,7 +162,7 @@ cd go\dist\htunnel-agent-windows-amd64
 .\start-ui.ps1
 ```
 
-说明：UI 建议以普通用户启动；真正建立 TUN/路由时（点击连接）仍需要管理员权限。
+说明：UI 启动即要求管理员权限（避免连接时权限不足）。
 
 注意：`tun2socks` 依赖 cgo，请在目标平台本机打包（mac 打 mac 包，windows 打 windows 包）。
 
