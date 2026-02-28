@@ -152,9 +152,9 @@ cd go
 - `bin/htunnel-ui`（`INCLUDE_UI=1` 默认启用）
 - `bin/tun2socks`
 - `configs/agent.yaml`
-- `start-agent.sh` / `start-agent.ps1`
-- `start-ui.sh` / `start-ui.ps1`
-- `start.sh` / `start.ps1`（默认优先启动 UI，不存在 UI 时回退到 agent）
+- `start-agent.sh` / `start-agent.ps1` / `start-agent.cmd`
+- `start-ui.sh` / `start-ui.ps1` / `start-ui.cmd`
+- `start.sh` / `start.ps1` / `start.cmd`（默认优先启动 UI，不存在 UI 时回退到 agent）
 
 示例（mac）：
 ```bash
@@ -169,6 +169,8 @@ cd go\dist\htunnel-agent-windows-amd64
 ```
 
 说明：UI 启动即要求管理员权限（避免连接时权限不足）。
+建议优先使用 `start-ui.cmd` / `start.cmd`，脚本会自动申请管理员权限并在异常时保留报错信息；直接双击 `bin\htunnel-ui.exe` 可能会因权限或配置错误而直接退出。
+若 Windows UI 仍然启动即退出，请确认系统已安装 Microsoft Edge WebView2 Runtime（Wails 桌面框架依赖）。
 
 注意：`tun2socks` 依赖 cgo，请在目标平台本机打包（mac 打 mac 包，windows 打 windows 包）。
 
