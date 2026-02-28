@@ -10,11 +10,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"time"
+
+	"htunnel/go/internal/shared"
 )
 
 type Service struct {
@@ -61,15 +61,14 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 func requireAdminPrivilege() error {
-	if runtime.GOOS == "windows" {
-		cmd := exec.Command("net", "session")
-		if err := cmd.Run(); err != nil {
+	ok, err := shared.HasAdminPrivileges()
+	if err != nil {
+		return fmt.Errorf("check administrator privilege failed: %w", err)
+	}
+	if !ok {
+		if runtime.GOOS == "windows" {
 			return fmt.Errorf("administrator privilege required on windows")
 		}
-		return nil
-	}
-
-	if os.Geteuid() != 0 {
 		return fmt.Errorf("root/admin privilege required when tun.enabled=true")
 	}
 	return nil

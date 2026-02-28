@@ -4,17 +4,17 @@ package main
 
 import (
 	"embed"
-	"fmt"
 	"flag"
+	"fmt"
 	"log"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+
+	"htunnel/go/internal/shared"
 )
 
 //go:embed frontend/dist
@@ -36,9 +36,9 @@ func main() {
 	app := NewApp(absPath)
 
 	err = wails.Run(&options.App{
-		Title:  "HTunnel Agent",
-		Width:  640,
-		Height: 460,
+		Title:     "HTunnel Agent",
+		Width:     640,
+		Height:    460,
 		MinWidth:  560,
 		MinHeight: 420,
 		AssetServer: &assetserver.Options{
@@ -55,14 +55,14 @@ func main() {
 }
 
 func requireAdminAtStartup() error {
-	if runtime.GOOS == "windows" {
-		cmd := exec.Command("net", "session")
-		if err := cmd.Run(); err != nil {
+	ok, err := shared.HasAdminPrivileges()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		if runtime.GOOS == "windows" {
 			return fmt.Errorf("administrator privilege required, please run this app as Administrator")
 		}
-		return nil
-	}
-	if os.Geteuid() != 0 {
 		return fmt.Errorf("root/admin privilege required, please start with sudo")
 	}
 	return nil

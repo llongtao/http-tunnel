@@ -103,6 +103,30 @@ Set-Location $scriptDir
 '@ | Set-Content -Path (Join-Path $pkgDir "start-agent.ps1") -NoNewline
 
   @'
+@echo off
+setlocal
+cd /d "%~dp0"
+
+if /i "%~1"=="__elevated" (
+  shift
+  goto run
+)
+
+whoami /groups | find "S-1-16-12288" >NUL 2>NUL
+if not "%errorlevel%"=="0" (
+  whoami /groups | find "S-1-16-16384" >NUL 2>NUL
+)
+if not "%errorlevel%"=="0" (
+  mshta "vbscript:CreateObject(""Shell.Application"").ShellExecute(""cmd.exe"",""/c cd /d """"%~dp0"""" ^&^& """"%~f0"""" __elevated"","""",""runas"",1)(close)"
+  exit /b 0
+)
+
+:run
+.\bin\htunnel-agent.exe -config .\configs\agent.yaml
+exit /b %errorlevel%
+'@ | Set-Content -Path (Join-Path $pkgDir "start-agent.cmd") -NoNewline
+
+  @'
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
@@ -112,6 +136,19 @@ if (Test-Path .\start-ui.ps1) {
   .\start-agent.ps1
 }
 '@ | Set-Content -Path (Join-Path $pkgDir "start.ps1") -NoNewline
+
+  @'
+@echo off
+setlocal
+cd /d "%~dp0"
+
+if exist ".\start-ui.cmd" (
+  call ".\start-ui.cmd"
+) else (
+  call ".\start-agent.cmd"
+)
+exit /b %errorlevel%
+'@ | Set-Content -Path (Join-Path $pkgDir "start.cmd") -NoNewline
 
   if ($includeUI -eq "1") {
     @'
@@ -136,12 +173,38 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptDir
 ./bin/htunnel-ui.exe -config ./configs/agent.yaml
 '@ | Set-Content -Path (Join-Path $pkgDir "start-ui.ps1") -NoNewline
+
+    @'
+@echo off
+setlocal
+cd /d "%~dp0"
+
+if /i "%~1"=="__elevated" (
+  shift
+  goto run
+)
+
+whoami /groups | find "S-1-16-12288" >NUL 2>NUL
+if not "%errorlevel%"=="0" (
+  whoami /groups | find "S-1-16-16384" >NUL 2>NUL
+)
+if not "%errorlevel%"=="0" (
+  mshta "vbscript:CreateObject(""Shell.Application"").ShellExecute(""cmd.exe"",""/c cd /d """"%~dp0"""" ^&^& """"%~f0"""" __elevated"","""",""runas"",1)(close)"
+  exit /b 0
+)
+
+:run
+.\bin\htunnel-ui.exe -config .\configs\agent.yaml
+exit /b %errorlevel%
+'@ | Set-Content -Path (Join-Path $pkgDir "start-ui.cmd") -NoNewline
   }
 
   @'
 HTunnel package usage:
-- start-agent.sh / start-agent.ps1 : start tunnel agent (requires admin)
-- start-ui.sh / start-ui.ps1       : start desktop UI (requires admin)
+- start-agent.cmd / start-agent.ps1 : start tunnel agent on Windows (requires admin)
+- start-ui.cmd / start-ui.ps1       : start desktop UI on Windows (requires admin)
+- start-agent.sh / start-ui.sh      : start on macOS/Linux (requires root/sudo)
+- start.cmd                         : default starter on Windows
 - configs/agent.yaml               : client config
 '@ | Set-Content -Path (Join-Path $pkgDir "README.txt") -NoNewline
 
