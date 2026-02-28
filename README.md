@@ -152,6 +152,7 @@ cd go
 - `bin/htunnel-ui`（`INCLUDE_UI=1` 默认启用）
 - `bin/tun2socks`
 - `bin/tap-windows-installer.exe`（可选，若存在会被打进 windows 包并被 `start-*.cmd` 自动调用）
+- `drivers/windows/tap.win10`（可选，若存在会被打进 windows 包并被 `start-*.cmd` 自动调用 `devcon + OemVista.inf`）
 - `configs/agent.yaml`
 - `start-agent.sh` / `start-agent.ps1` / `start-agent.cmd`
 - `start-ui.sh` / `start-ui.ps1` / `start-ui.cmd`
