@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"errors"
 	"io"
 	"net"
 	"sync"
@@ -27,7 +26,8 @@ func newWSStream(id string, session *Session) *wsStream {
 	return &wsStream{
 		id:      id,
 		session: session,
-		inCh:    make(chan []byte, 128),
+		// Larger buffer to smooth short traffic bursts from websocket reader.
+		inCh:    make(chan []byte, 512),
 		closeCh: make(chan struct{}),
 	}
 }
@@ -44,8 +44,6 @@ func (s *wsStream) Read(p []byte) (int, error) {
 		s.rmu.Unlock()
 
 		select {
-		case <-s.closeCh:
-			return 0, io.EOF
 		case data, ok := <-s.inCh:
 			if !ok {
 				return 0, io.EOF
@@ -53,6 +51,18 @@ func (s *wsStream) Read(p []byte) (int, error) {
 			s.rmu.Lock()
 			s.rbuf = data
 			s.rmu.Unlock()
+		case <-s.closeCh:
+			// Preserve FIN semantics: if close arrives after queued data,
+			// drain queued frames before returning EOF.
+			select {
+			case data := <-s.inCh:
+				s.rmu.Lock()
+				s.rbuf = data
+				s.rmu.Unlock()
+				continue
+			default:
+				return 0, io.EOF
+			}
 		}
 	}
 }
@@ -100,8 +110,6 @@ func (s *wsStream) push(data []byte) error {
 		return io.EOF
 	case s.inCh <- payload:
 		return nil
-	default:
-		return errors.New("stream inbound buffer full")
 	}
 }
 
