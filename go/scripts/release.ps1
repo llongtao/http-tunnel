@@ -71,6 +71,12 @@ foreach ($target in $targets) {
     Copy-Item $tapInstaller (Join-Path $pkgDir "bin/tap-windows-installer.exe") -Force
     Write-Host "[release] bundled Windows TAP driver installer"
   }
+  $tapWin10Dir = Join-Path $rootDir "drivers/windows/tap.win10"
+  if ($os -eq "windows" -and (Test-Path $tapWin10Dir)) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $pkgDir "drivers/windows") | Out-Null
+    Copy-Item $tapWin10Dir (Join-Path $pkgDir "drivers/windows/tap.win10") -Recurse -Force
+    Write-Host "[release] bundled Windows TAP package drivers/windows/tap.win10"
+  }
 
   @'
 #!/usr/bin/env bash
@@ -143,21 +149,44 @@ if not exist ".\configs\agent.yaml" (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+call :has_tap_adapter
 if "%errorlevel%"=="0" goto launch
 
 echo No TAP/Wintun adapter found. Trying bundled driver installer...
 if exist ".\bin\tap-windows-installer.exe" (
   start "" /wait ".\bin\tap-windows-installer.exe" /S
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+  call :has_tap_adapter
   if "%errorlevel%"=="0" goto launch
-  echo Driver installer finished, but TAP/Wintun adapter is still not available.
-) else (
-  echo Missing bundled driver installer: .\bin\tap-windows-installer.exe
+  echo Installer finished, but no TAP/Wintun adapter detected yet.
 )
+
+set "tap_arch=amd64"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "tap_arch=arm64"
+if /i "%PROCESSOR_ARCHITECTURE%"=="X86" set "tap_arch=i386"
+if /i "%PROCESSOR_ARCHITEW6432%"=="AMD64" set "tap_arch=amd64"
+if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "tap_arch=arm64"
+
+if exist ".\drivers\windows\tap.win10\%tap_arch%\devcon.exe" if exist ".\drivers\windows\tap.win10\%tap_arch%\OemVista.inf" (
+  echo Trying bundled TAP package via devcon (arch=%tap_arch%)...
+  pushd ".\drivers\windows\tap.win10\%tap_arch%"
+  .\devcon.exe install .\OemVista.inf tap0901 >NUL 2>NUL
+  if not "%errorlevel%"=="0" .\devcon.exe install .\OemVista.inf root\tap0901 >NUL 2>NUL
+  popd
+  call :has_tap_adapter
+  if "%errorlevel%"=="0" goto launch
+  echo Devcon install finished, but no TAP/Wintun adapter detected yet.
+)
+
+echo Missing bundled TAP installer assets:
+echo - .\bin\tap-windows-installer.exe (optional)
+echo - .\drivers\windows\tap.win10\%tap_arch%\devcon.exe + OemVista.inf (optional)
 echo Please install TAP/Wintun driver, then run again.
 pause
 exit /b 1
+
+:has_tap_adapter
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun|tap' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+exit /b %errorlevel%
 
 :launch
 .\bin\htunnel-agent.exe -config .\configs\agent.yaml
@@ -253,21 +282,44 @@ if not exist ".\configs\agent.yaml" (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+call :has_tap_adapter
 if "%errorlevel%"=="0" goto launch
 
 echo No TAP/Wintun adapter found. Trying bundled driver installer...
 if exist ".\bin\tap-windows-installer.exe" (
   start "" /wait ".\bin\tap-windows-installer.exe" /S
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+  call :has_tap_adapter
   if "%errorlevel%"=="0" goto launch
-  echo Driver installer finished, but TAP/Wintun adapter is still not available.
-) else (
-  echo Missing bundled driver installer: .\bin\tap-windows-installer.exe
+  echo Installer finished, but no TAP/Wintun adapter detected yet.
 )
+
+set "tap_arch=amd64"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "tap_arch=arm64"
+if /i "%PROCESSOR_ARCHITECTURE%"=="X86" set "tap_arch=i386"
+if /i "%PROCESSOR_ARCHITEW6432%"=="AMD64" set "tap_arch=amd64"
+if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "tap_arch=arm64"
+
+if exist ".\drivers\windows\tap.win10\%tap_arch%\devcon.exe" if exist ".\drivers\windows\tap.win10\%tap_arch%\OemVista.inf" (
+  echo Trying bundled TAP package via devcon (arch=%tap_arch%)...
+  pushd ".\drivers\windows\tap.win10\%tap_arch%"
+  .\devcon.exe install .\OemVista.inf tap0901 >NUL 2>NUL
+  if not "%errorlevel%"=="0" .\devcon.exe install .\OemVista.inf root\tap0901 >NUL 2>NUL
+  popd
+  call :has_tap_adapter
+  if "%errorlevel%"=="0" goto launch
+  echo Devcon install finished, but no TAP/Wintun adapter detected yet.
+)
+
+echo Missing bundled TAP installer assets:
+echo - .\bin\tap-windows-installer.exe (optional)
+echo - .\drivers\windows\tap.win10\%tap_arch%\devcon.exe + OemVista.inf (optional)
 echo Please install TAP/Wintun driver, then run again.
 pause
 exit /b 1
+
+:has_tap_adapter
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun|tap' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+exit /b %errorlevel%
 
 :launch
 .\bin\htunnel-ui.exe -config .\configs\agent.yaml
@@ -287,6 +339,7 @@ HTunnel package usage:
 - start-agent.sh / start-ui.sh      : start on macOS/Linux (requires root/sudo)
 - start.cmd                         : default starter on Windows
 - bin/tap-windows-installer.exe     : optional Windows TAP driver installer (auto-run by start-*.cmd when adapter missing)
+- drivers/windows/tap.win10         : optional TAP package (devcon + OemVista.inf), auto-used by start-*.cmd when adapter missing
 - configs/agent.yaml               : client config
 '@ | Set-Content -Path (Join-Path $pkgDir "README.txt") -NoNewline
 

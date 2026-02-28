@@ -98,7 +98,7 @@ func detectWindowsTunAdapterName() (string, error) {
 		"-NoProfile",
 		"-ExecutionPolicy", "Bypass",
 		"-Command",
-		"Get-NetAdapter -ErrorAction Stop | Select-Object Name,InterfaceDescription,Status | ConvertTo-Json -Compress",
+		"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-NetAdapter -ErrorAction Stop | Select-Object Name,InterfaceDescription,Status | ConvertTo-Json -Compress",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
