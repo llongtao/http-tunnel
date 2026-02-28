@@ -64,6 +64,10 @@ for target in ${TARGETS}; do
   )
 
   cp "${ROOT_DIR}/configs/agent.yaml" "${pkg}/configs/agent.yaml"
+  if [[ "${os}" == "windows" && -f "${ROOT_DIR}/drivers/windows/tap-windows-installer.exe" ]]; then
+    cp "${ROOT_DIR}/drivers/windows/tap-windows-installer.exe" "${pkg}/bin/tap-windows-installer.exe"
+    echo "[release] bundled Windows TAP driver installer"
+  fi
 
   cat > "${pkg}/start-agent.sh" <<'SH'
 #!/usr/bin/env bash
@@ -151,6 +155,24 @@ if not exist ".\configs\agent.yaml" (
   pause
   exit /b 1
 )
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+if "%errorlevel%"=="0" goto launch
+
+echo No TAP/Wintun adapter found. Trying bundled driver installer...
+if exist ".\bin\tap-windows-installer.exe" (
+  start "" /wait ".\bin\tap-windows-installer.exe" /S
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+  if "%errorlevel%"=="0" goto launch
+  echo Driver installer finished, but TAP/Wintun adapter is still not available.
+) else (
+  echo Missing bundled driver installer: .\bin\tap-windows-installer.exe
+)
+echo Please install TAP/Wintun driver, then run again.
+pause
+exit /b 1
+
+:launch
 .\bin\htunnel-agent.exe -config .\configs\agent.yaml
 set "exit_code=%errorlevel%"
 if not "%exit_code%"=="0" (
@@ -232,6 +254,24 @@ if not exist ".\configs\agent.yaml" (
   pause
   exit /b 1
 )
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+if "%errorlevel%"=="0" goto launch
+
+echo No TAP/Wintun adapter found. Trying bundled driver installer...
+if exist ".\bin\tap-windows-installer.exe" (
+  start "" /wait ".\bin\tap-windows-installer.exe" /S
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+  if "%errorlevel%"=="0" goto launch
+  echo Driver installer finished, but TAP/Wintun adapter is still not available.
+) else (
+  echo Missing bundled driver installer: .\bin\tap-windows-installer.exe
+)
+echo Please install TAP/Wintun driver, then run again.
+pause
+exit /b 1
+
+:launch
 .\bin\htunnel-ui.exe -config .\configs\agent.yaml
 set "exit_code=%errorlevel%"
 if not "%exit_code%"=="0" (
@@ -248,6 +288,7 @@ HTunnel package usage:
 - start-ui.cmd / start-ui.ps1       : start desktop UI on Windows (requires admin)
 - start-agent.sh / start-ui.sh       : start on macOS/Linux (requires root/sudo)
 - start.cmd                          : default starter on Windows
+- bin/tap-windows-installer.exe      : optional Windows TAP driver installer (auto-run by start-*.cmd when adapter missing)
 - configs/agent.yaml               : client config
 TXT
 

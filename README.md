@@ -151,6 +151,7 @@ cd go
 - `bin/htunnel-agent`
 - `bin/htunnel-ui`（`INCLUDE_UI=1` 默认启用）
 - `bin/tun2socks`
+- `bin/tap-windows-installer.exe`（可选，若存在会被打进 windows 包并被 `start-*.cmd` 自动调用）
 - `configs/agent.yaml`
 - `start-agent.sh` / `start-agent.ps1` / `start-agent.cmd`
 - `start-ui.sh` / `start-ui.ps1` / `start-ui.cmd`
@@ -169,7 +170,8 @@ cd go\dist\htunnel-agent-windows-amd64
 ```
 
 说明：UI 启动即要求管理员权限（避免连接时权限不足）。
-建议优先使用 `start-ui.cmd` / `start.cmd`，脚本会自动申请管理员权限并在异常时保留报错信息；直接双击 `bin\htunnel-ui.exe` 可能会因权限或配置错误而直接退出。
+建议优先使用 `start-ui.cmd` / `start.cmd`，脚本会自动申请管理员权限，且在缺少 TAP/Wintun 时会尝试运行包内 `bin\tap-windows-installer.exe`（若已打包）。
+直接双击 `bin\htunnel-ui.exe` 可能会因权限或配置错误而直接退出。
 若 Windows UI 仍然启动即退出，请确认系统已安装 Microsoft Edge WebView2 Runtime（Wails 桌面框架依赖）。
 
 注意：`tun2socks` 依赖 cgo，请在目标平台本机打包（mac 打 mac 包，windows 打 windows 包）。
@@ -256,6 +258,13 @@ tun:
   route_cidrs:
     - "10.2.2.123/32"
 ```
+Windows 注意：
+- `name: "utun9"` 仅适用于 macOS 示例。
+- Windows 下 `tun.name` 为空或是 `utun*` 时，会自动探测现有 TAP/Wintun 网卡并自动填充。
+- 若探测不到，`start-*.cmd` 会尝试执行 `bin\tap-windows-installer.exe` 自动安装驱动（如果该文件已随包提供）。
+- 可用管理员 PowerShell 查看可选网卡名：`Get-NetAdapter | Format-Table -Auto Name, InterfaceDescription, Status`
+- 如果仍没有 TAP/Wintun 网卡，请先安装对应驱动（例如 OpenVPN TAP-Windows 或 Wintun）。
+
 开发环境可直接安装到 `go/bin`（中国网络可用镜像）：
 ```bash
 make install-tun2socks
