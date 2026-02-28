@@ -23,6 +23,9 @@ socks:
 tun:
   enabled: true
   binary: ""
+  # macOS example: utun9
+  # Windows: empty or "utun*" will trigger auto-detect TAP/Wintun adapter.
+  # If not found, launcher can auto-run bundled bin/tap-windows-installer.exe.
   name: "utun9"
   addr: "10.2.2.2"
   gateway: "10.2.2.1"

@@ -10,7 +10,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -43,6 +45,9 @@ func (s *Service) Run(ctx context.Context) error {
 		if err := requireAdminPrivilege(); err != nil {
 			return err
 		}
+		if err := validateTunConfig(runtime.GOOS, &s.cfg); err != nil {
+			return err
+		}
 	}
 
 	session := NewSession(s.cfg)
@@ -58,6 +63,121 @@ func (s *Service) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func validateTunConfig(goos string, cfg *Config) error {
+	if goos != "windows" || !cfg.Tun.Enabled {
+		return nil
+	}
+	name := strings.TrimSpace(cfg.Tun.Name)
+
+	// On Windows, empty name (or macOS placeholder utun*) triggers auto-detection.
+	if name == "" || strings.HasPrefix(strings.ToLower(name), "utun") {
+		detected, err := detectWindowsTunAdapterName()
+		if err != nil {
+			if name == "" {
+				return fmt.Errorf("tun.name auto-detect failed: %w", err)
+			}
+			return fmt.Errorf("invalid tun.name=%q on windows and auto-detect failed: %w", name, err)
+		}
+		cfg.Tun.Name = detected
+		log.Printf("auto selected windows tun adapter: %s", detected)
+	}
+	return nil
+}
+
+type windowsAdapter struct {
+	Name                 string `json:"Name"`
+	InterfaceDescription string `json:"InterfaceDescription"`
+	Status               string `json:"Status"`
+}
+
+func detectWindowsTunAdapterName() (string, error) {
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"-ExecutionPolicy", "Bypass",
+		"-Command",
+		"Get-NetAdapter -ErrorAction Stop | Select-Object Name,InterfaceDescription,Status | ConvertTo-Json -Compress",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("query adapters failed: %w, output=%s", err, strings.TrimSpace(string(output)))
+	}
+
+	adapters, err := parseWindowsAdapters(output)
+	if err != nil {
+		return "", err
+	}
+
+	type candidate struct {
+		name  string
+		score int
+	}
+	var cands []candidate
+	for _, adapter := range adapters {
+		score, ok := windowsTunCandidateScore(adapter)
+		if !ok {
+			continue
+		}
+		cands = append(cands, candidate{name: adapter.Name, score: score})
+	}
+	if len(cands) == 0 {
+		return "", fmt.Errorf("no TAP/Wintun adapter found; install a TAP/Wintun driver or set tun.name manually (check with Get-NetAdapter)")
+	}
+
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].score != cands[j].score {
+			return cands[i].score > cands[j].score
+		}
+		return cands[i].name < cands[j].name
+	})
+	return cands[0].name, nil
+}
+
+func parseWindowsAdapters(raw []byte) ([]windowsAdapter, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("query adapters returned empty output")
+	}
+
+	if raw[0] == '[' {
+		var adapters []windowsAdapter
+		if err := json.Unmarshal(raw, &adapters); err != nil {
+			return nil, fmt.Errorf("parse adapter list failed: %w", err)
+		}
+		return adapters, nil
+	}
+
+	var single windowsAdapter
+	if err := json.Unmarshal(raw, &single); err != nil {
+		return nil, fmt.Errorf("parse adapter item failed: %w", err)
+	}
+	return []windowsAdapter{single}, nil
+}
+
+func windowsTunCandidateScore(adapter windowsAdapter) (int, bool) {
+	name := strings.ToLower(strings.TrimSpace(adapter.Name))
+	desc := strings.ToLower(strings.TrimSpace(adapter.InterfaceDescription))
+	status := strings.ToLower(strings.TrimSpace(adapter.Status))
+	joined := name + " " + desc
+
+	if name == "" || status == "disabled" {
+		return 0, false
+	}
+	if strings.Contains(joined, "isatap") {
+		return 0, false
+	}
+	if strings.Contains(joined, "wintun") {
+		return 100, true
+	}
+	if strings.Contains(joined, "tap-windows") || strings.Contains(joined, "tap-win32") {
+		return 90, true
+	}
+	if strings.Contains(joined, "tap adapter") || strings.Contains(joined, "openvpn tap") {
+		return 80, true
+	}
+	return 0, false
 }
 
 func requireAdminPrivilege() error {

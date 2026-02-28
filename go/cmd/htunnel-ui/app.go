@@ -256,7 +256,11 @@ func defaultAgentConfig() agent.Config {
 	cfg.Agent.Version = "0.1.0"
 	cfg.Socks.Listen = "127.0.0.1:1080"
 	cfg.Tun.Enabled = true
-	cfg.Tun.Name = "utun9"
+	if runtime.GOOS == "windows" {
+		cfg.Tun.Name = ""
+	} else {
+		cfg.Tun.Name = "utun9"
+	}
 	cfg.Tun.Addr = "10.2.2.2"
 	cfg.Tun.Gateway = "10.2.2.1"
 	cfg.Tun.Mask = "255.255.255.0"
@@ -414,7 +418,12 @@ func applyLocalDefaults(cfg *agent.Config) error {
 		cfg.Socks.Listen = "127.0.0.1:1080"
 	}
 	if cfg.Tun.Name == "" {
-		cfg.Tun.Name = "utun9"
+		if runtime.GOOS == "windows" {
+			// Empty on Windows means "auto-detect TAP/Wintun adapter".
+			cfg.Tun.Name = ""
+		} else {
+			cfg.Tun.Name = "utun9"
+		}
 	}
 	if cfg.Tun.Addr == "" {
 		cfg.Tun.Addr = "10.2.2.2"
