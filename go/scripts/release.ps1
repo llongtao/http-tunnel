@@ -185,7 +185,7 @@ pause
 exit /b 1
 
 :has_tap_adapter
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun|tap' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue; $ok=$false; foreach($n in $a){$name=[string]$n.Name; $desc=[string]$n.InterfaceDescription; if((($name -match 'wintun') -or ($desc -match 'wintun') -or ($desc -match 'tap-windows') -or ($desc -match 'tap-win32') -or ($desc -match 'tap adapter') -or ($desc -match 'openvpn tap')) -and ($name -notmatch 'isatap') -and ($desc -notmatch 'isatap')){$ok=$true; break}}; if($ok){exit 0}else{exit 1}"
 exit /b %errorlevel%
 
 :launch
@@ -318,7 +318,7 @@ pause
 exit /b 1
 
 :has_tap_adapter
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | ? { $_.Name -match 'wintun|tap' -or $_.InterfaceDescription -match 'wintun|tap-windows|tap-win32|tap adapter|openvpn tap' }; if($a){exit 0}else{exit 1}"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$a=Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue; $ok=$false; foreach($n in $a){$name=[string]$n.Name; $desc=[string]$n.InterfaceDescription; if((($name -match 'wintun') -or ($desc -match 'wintun') -or ($desc -match 'tap-windows') -or ($desc -match 'tap-win32') -or ($desc -match 'tap adapter') -or ($desc -match 'openvpn tap')) -and ($name -notmatch 'isatap') -and ($desc -notmatch 'isatap')){$ok=$true; break}}; if($ok){exit 0}else{exit 1}"
 exit /b %errorlevel%
 
 :launch
