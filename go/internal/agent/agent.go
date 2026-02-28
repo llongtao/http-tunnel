@@ -162,20 +162,31 @@ func windowsTunCandidateScore(adapter windowsAdapter) (int, bool) {
 	status := strings.ToLower(strings.TrimSpace(adapter.Status))
 	joined := name + " " + desc
 
-	if name == "" || status == "disabled" {
+	if name == "" {
+		return 0, false
+	}
+	switch status {
+	case "disabled", "not present", "notpresent", "unknown":
 		return 0, false
 	}
 	if strings.Contains(joined, "isatap") {
 		return 0, false
 	}
+	statusScore := 0
+	switch status {
+	case "up":
+		statusScore = 20
+	case "disconnected", "dormant":
+		statusScore = 10
+	}
 	if strings.Contains(joined, "wintun") {
-		return 100, true
+		return 100 + statusScore, true
 	}
 	if strings.Contains(joined, "tap-windows") || strings.Contains(joined, "tap-win32") {
-		return 90, true
+		return 90 + statusScore, true
 	}
 	if strings.Contains(joined, "tap adapter") || strings.Contains(joined, "openvpn tap") {
-		return 80, true
+		return 80 + statusScore, true
 	}
 	return 0, false
 }
