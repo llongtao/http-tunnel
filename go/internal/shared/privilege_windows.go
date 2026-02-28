@@ -6,8 +6,7 @@ import "golang.org/x/sys/windows"
 
 func HasAdminPrivileges() (bool, error) {
 	token := windows.Token(0)
-	elevated, err := token.IsElevated()
-	if err == nil && elevated {
+	if token.IsElevated() {
 		return true, nil
 	}
 
@@ -17,9 +16,6 @@ func HasAdminPrivileges() (bool, error) {
 		return true, nil
 	}
 
-	if err != nil {
-		return false, err
-	}
 	return false, nil
 }
 
