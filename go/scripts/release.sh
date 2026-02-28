@@ -121,23 +121,43 @@ PS1
 setlocal
 cd /d "%~dp0"
 
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$id=[Security.Principal.WindowsIdentity]::GetCurrent(); $p=New-Object Security.Principal.WindowsPrincipal($id); if($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){exit 0}else{exit 1}"
+if "%errorlevel%"=="0" goto run
+
 if /i "%~1"=="__elevated" (
-  shift
-  goto run
+  echo Failed to acquire Administrator privileges.
+  echo Please right-click this script and select "Run as administrator".
+  pause
+  exit /b 1
 )
 
-whoami /groups | find "S-1-16-12288" >NUL 2>NUL
+echo Requesting Administrator privileges...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -ArgumentList '__elevated' -Verb RunAs -WorkingDirectory '%~dp0'"
 if not "%errorlevel%"=="0" (
-  whoami /groups | find "S-1-16-16384" >NUL 2>NUL
+  echo Elevation was cancelled or failed.
+  pause
+  exit /b 1
 )
-if not "%errorlevel%"=="0" (
-  mshta "vbscript:CreateObject(""Shell.Application"").ShellExecute(""cmd.exe"",""/c cd /d """"%~dp0"""" ^&^& """"%~f0"""" __elevated"","""",""runas"",1)(close)"
-  exit /b 0
-)
+exit /b 0
 
 :run
+if not exist ".\bin\htunnel-agent.exe" (
+  echo Missing file: .\bin\htunnel-agent.exe
+  pause
+  exit /b 1
+)
+if not exist ".\configs\agent.yaml" (
+  echo Missing file: .\configs\agent.yaml
+  pause
+  exit /b 1
+)
 .\bin\htunnel-agent.exe -config .\configs\agent.yaml
-exit /b %errorlevel%
+set "exit_code=%errorlevel%"
+if not "%exit_code%"=="0" (
+  echo Process exited with code %exit_code%.
+  pause
+)
+exit /b %exit_code%
 CMD
 
   cat > "${pkg}/start.ps1" <<'PS1'
@@ -182,23 +202,43 @@ PS1
 setlocal
 cd /d "%~dp0"
 
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$id=[Security.Principal.WindowsIdentity]::GetCurrent(); $p=New-Object Security.Principal.WindowsPrincipal($id); if($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){exit 0}else{exit 1}"
+if "%errorlevel%"=="0" goto run
+
 if /i "%~1"=="__elevated" (
-  shift
-  goto run
+  echo Failed to acquire Administrator privileges.
+  echo Please right-click this script and select "Run as administrator".
+  pause
+  exit /b 1
 )
 
-whoami /groups | find "S-1-16-12288" >NUL 2>NUL
+echo Requesting Administrator privileges...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -ArgumentList '__elevated' -Verb RunAs -WorkingDirectory '%~dp0'"
 if not "%errorlevel%"=="0" (
-  whoami /groups | find "S-1-16-16384" >NUL 2>NUL
+  echo Elevation was cancelled or failed.
+  pause
+  exit /b 1
 )
-if not "%errorlevel%"=="0" (
-  mshta "vbscript:CreateObject(""Shell.Application"").ShellExecute(""cmd.exe"",""/c cd /d """"%~dp0"""" ^&^& """"%~f0"""" __elevated"","""",""runas"",1)(close)"
-  exit /b 0
-)
+exit /b 0
 
 :run
+if not exist ".\bin\htunnel-ui.exe" (
+  echo Missing file: .\bin\htunnel-ui.exe
+  pause
+  exit /b 1
+)
+if not exist ".\configs\agent.yaml" (
+  echo Missing file: .\configs\agent.yaml
+  pause
+  exit /b 1
+)
 .\bin\htunnel-ui.exe -config .\configs\agent.yaml
-exit /b %errorlevel%
+set "exit_code=%errorlevel%"
+if not "%exit_code%"=="0" (
+  echo Process exited with code %exit_code%.
+  pause
+)
+exit /b %exit_code%
 CMD
   fi
 
