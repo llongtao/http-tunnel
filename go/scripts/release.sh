@@ -179,7 +179,7 @@ if /i "%PROCESSOR_ARCHITEW6432%"=="AMD64" set "tap_arch=amd64"
 if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "tap_arch=arm64"
 
 if exist ".\drivers\windows\tap.win10\%tap_arch%\devcon.exe" if exist ".\drivers\windows\tap.win10\%tap_arch%\OemVista.inf" (
-  echo Trying bundled TAP package via devcon (arch=%tap_arch%)...
+  echo Trying bundled TAP package via devcon ^(arch=%tap_arch%^)...
   pushd ".\drivers\windows\tap.win10\%tap_arch%"
   .\devcon.exe install .\OemVista.inf tap0901 >NUL 2>NUL
   if not "%errorlevel%"=="0" .\devcon.exe install .\OemVista.inf root\tap0901 >NUL 2>NUL
@@ -190,8 +190,8 @@ if exist ".\drivers\windows\tap.win10\%tap_arch%\devcon.exe" if exist ".\drivers
 )
 
 echo Missing bundled TAP installer assets:
-echo - .\bin\tap-windows-installer.exe (optional)
-echo - .\drivers\windows\tap.win10\%tap_arch%\devcon.exe + OemVista.inf (optional)
+echo - .\bin\tap-windows-installer.exe ^(optional^)
+echo - .\drivers\windows\tap.win10\%tap_arch%\devcon.exe + OemVista.inf ^(optional^)
 echo Please install TAP/Wintun driver, then run again.
 pause
 exit /b 1
@@ -231,7 +231,12 @@ if exist ".\start-ui.cmd" (
 ) else (
   call ".\start-agent.cmd"
 )
-exit /b %errorlevel%
+set "exit_code=%errorlevel%"
+if not "%exit_code%"=="0" (
+  echo Starter failed with code %exit_code%.
+  pause
+)
+exit /b %exit_code%
 CMD
 
   if [[ "${INCLUDE_UI}" == "1" ]]; then
@@ -301,7 +306,7 @@ if /i "%PROCESSOR_ARCHITEW6432%"=="AMD64" set "tap_arch=amd64"
 if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "tap_arch=arm64"
 
 if exist ".\drivers\windows\tap.win10\%tap_arch%\devcon.exe" if exist ".\drivers\windows\tap.win10\%tap_arch%\OemVista.inf" (
-  echo Trying bundled TAP package via devcon (arch=%tap_arch%)...
+  echo Trying bundled TAP package via devcon ^(arch=%tap_arch%^)...
   pushd ".\drivers\windows\tap.win10\%tap_arch%"
   .\devcon.exe install .\OemVista.inf tap0901 >NUL 2>NUL
   if not "%errorlevel%"=="0" .\devcon.exe install .\OemVista.inf root\tap0901 >NUL 2>NUL
@@ -312,8 +317,8 @@ if exist ".\drivers\windows\tap.win10\%tap_arch%\devcon.exe" if exist ".\drivers
 )
 
 echo Missing bundled TAP installer assets:
-echo - .\bin\tap-windows-installer.exe (optional)
-echo - .\drivers\windows\tap.win10\%tap_arch%\devcon.exe + OemVista.inf (optional)
+echo - .\bin\tap-windows-installer.exe ^(optional^)
+echo - .\drivers\windows\tap.win10\%tap_arch%\devcon.exe + OemVista.inf ^(optional^)
 echo Please install TAP/Wintun driver, then run again.
 pause
 exit /b 1
