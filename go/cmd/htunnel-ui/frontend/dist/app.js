@@ -17,10 +17,35 @@ function setVal(id, value) {
   if (el) el.value = value || "";
 }
 
+function showToast(msg, ok = false) {
+  const text = String(msg || "").trim();
+  if (!text) return;
+
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${ok ? "success" : "error"}`;
+  toast.textContent = text;
+  container.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add("show");
+  });
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 180);
+  }, 2200);
+}
+
 function setMsg(msg, ok = false) {
-  const el = document.getElementById("msg");
-  el.style.color = ok ? "#0f766e" : "#b3261e";
-  el.textContent = msg || "";
+  if (!msg) return;
+  showToast(msg, ok);
 }
 
 let currentRunning = false;
@@ -94,7 +119,6 @@ document.getElementById("btnToggle").addEventListener("click", toggleConnect);
 document.getElementById("btnRefresh").addEventListener("click", async () => {
   try {
     await refreshStatus();
-    setMsg("");
   } catch (e) {
     setMsg(`刷新失败: ${e}`);
   }
@@ -117,4 +141,3 @@ setInterval(async () => {
     await refreshStatus();
   } catch (_) {}
 }, 3000);
-

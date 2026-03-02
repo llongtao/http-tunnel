@@ -26,6 +26,7 @@ type Config struct {
 		Enabled                  bool     `yaml:"enabled"`
 		Binary                   string   `yaml:"binary"`
 		Name                     string   `yaml:"name"`
+		InterfaceIndex           int      `yaml:"interface_index"`
 		Addr                     string   `yaml:"addr"`
 		Gateway                  string   `yaml:"gateway"`
 		Mask                     string   `yaml:"mask"`

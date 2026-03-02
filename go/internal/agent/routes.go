@@ -17,7 +17,7 @@ func (c *Config) EnsureRouteCommands(goos string) error {
 	if len(cidrs) == 0 {
 		return nil
 	}
-	setup, cleanup, err := BuildRouteCommands(goos, cidrs, c.Tun.Addr, c.Tun.Gateway)
+	setup, cleanup, err := BuildRouteCommands(goos, cidrs, c.Tun.Addr, c.Tun.Gateway, c.Tun.InterfaceIndex)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func NormalizeRouteCIDRs(routeCIDRs []string) ([]string, error) {
 	return out, nil
 }
 
-func BuildRouteCommands(goos string, routeCIDRs []string, tunAddr string, tunGateway string) ([]string, []string, error) {
+func BuildRouteCommands(goos string, routeCIDRs []string, tunAddr string, tunGateway string, tunIfIndex int) ([]string, []string, error) {
 	cidrs, err := NormalizeRouteCIDRs(routeCIDRs)
 	if err != nil {
 		return nil, nil, err
@@ -78,7 +78,7 @@ func BuildRouteCommands(goos string, routeCIDRs []string, tunAddr string, tunGat
 	case "darwin":
 		return buildDarwinRouteCommands(cidrs, tunAddr, tunGateway)
 	case "windows":
-		return buildWindowsRouteCommands(cidrs, tunGateway)
+		return buildWindowsRouteCommands(cidrs, tunGateway, tunIfIndex)
 	default:
 		return nil, nil, fmt.Errorf("auto route generation does not support os=%s", goos)
 	}
@@ -113,10 +113,16 @@ func buildDarwinRouteCommands(routeCIDRs []string, tunAddr string, tunGateway st
 	return setup, cleanup, nil
 }
 
-func buildWindowsRouteCommands(routeCIDRs []string, tunGateway string) ([]string, []string, error) {
+func buildWindowsRouteCommands(routeCIDRs []string, tunGateway string, tunIfIndex int) ([]string, []string, error) {
 	if strings.TrimSpace(tunGateway) == "" {
 		return nil, nil, fmt.Errorf("tun.gateway is required for windows route generation")
 	}
+
+	addFormat := `route add %s mask %s %s`
+	if tunIfIndex > 0 {
+		addFormat = `route add %s mask %s %s IF %d`
+	}
+
 	setup := make([]string, 0, len(routeCIDRs))
 	cleanup := make([]string, 0, len(routeCIDRs))
 	for _, cidr := range routeCIDRs {
@@ -125,13 +131,25 @@ func buildWindowsRouteCommands(routeCIDRs []string, tunGateway string) ([]string
 		bits := prefix.Bits()
 		if bits == 32 {
 			host := prefix.Addr().String()
-			setup = append(setup, fmt.Sprintf(`route delete %s >NUL 2>NUL & route add %s mask 255.255.255.255 %s`, host, host, tunGateway))
+			addCmd := ""
+			if tunIfIndex > 0 {
+				addCmd = fmt.Sprintf(addFormat, host, "255.255.255.255", tunGateway, tunIfIndex)
+			} else {
+				addCmd = fmt.Sprintf(addFormat, host, "255.255.255.255", tunGateway)
+			}
+			setup = append(setup, fmt.Sprintf(`route delete %s >NUL 2>NUL & %s`, host, addCmd))
 			cleanup = append(cleanup, fmt.Sprintf(`route delete %s >NUL 2>NUL`, host))
 			continue
 		}
 		network := prefix.Addr().String()
 		mask := ipv4MaskFromPrefix(bits)
-		setup = append(setup, fmt.Sprintf(`route delete %s >NUL 2>NUL & route add %s mask %s %s`, network, network, mask, tunGateway))
+		addCmd := ""
+		if tunIfIndex > 0 {
+			addCmd = fmt.Sprintf(addFormat, network, mask, tunGateway, tunIfIndex)
+		} else {
+			addCmd = fmt.Sprintf(addFormat, network, mask, tunGateway)
+		}
+		setup = append(setup, fmt.Sprintf(`route delete %s >NUL 2>NUL & %s`, network, addCmd))
 		cleanup = append(cleanup, fmt.Sprintf(`route delete %s >NUL 2>NUL`, network))
 	}
 	return setup, cleanup, nil
