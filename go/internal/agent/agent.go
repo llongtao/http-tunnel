@@ -37,10 +37,6 @@ func (s *Service) Run(ctx context.Context) error {
 			return err
 		}
 	}
-	if err := s.cfg.EnsureRouteCommands(runtime.GOOS); err != nil {
-		return err
-	}
-
 	if s.cfg.Tun.Enabled {
 		if err := requireAdminPrivilege(); err != nil {
 			return err
@@ -48,6 +44,9 @@ func (s *Service) Run(ctx context.Context) error {
 		if err := validateTunConfig(runtime.GOOS, &s.cfg); err != nil {
 			return err
 		}
+	}
+	if err := s.cfg.EnsureRouteCommands(runtime.GOOS); err != nil {
+		return err
 	}
 
 	session := NewSession(s.cfg)
@@ -73,16 +72,25 @@ func validateTunConfig(goos string, cfg *Config) error {
 
 	// On Windows, empty name (or macOS placeholder utun*) triggers auto-detection.
 	if name == "" || strings.HasPrefix(strings.ToLower(name), "utun") {
-		detected, err := detectWindowsTunAdapterName()
+		detected, err := detectWindowsTunAdapter()
 		if err != nil {
 			if name == "" {
 				return fmt.Errorf("tun.name auto-detect failed: %w", err)
 			}
 			return fmt.Errorf("invalid tun.name=%q on windows and auto-detect failed: %w", name, err)
 		}
-		cfg.Tun.Name = detected
-		log.Printf("auto selected windows tun adapter: %s", detected)
+		cfg.Tun.Name = detected.Name
+		cfg.Tun.InterfaceIndex = detected.IfIndex
+		log.Printf("auto selected windows tun adapter: %s (ifIndex=%d)", detected.Name, detected.IfIndex)
+		return nil
 	}
+
+	ifIndex, err := detectWindowsTunInterfaceIndex(name)
+	if err != nil {
+		log.Printf("resolve tun interface index failed for %q: %v", name, err)
+		return nil
+	}
+	cfg.Tun.InterfaceIndex = ifIndex
 	return nil
 }
 
@@ -90,29 +98,37 @@ type windowsAdapter struct {
 	Name                 string `json:"Name"`
 	InterfaceDescription string `json:"InterfaceDescription"`
 	Status               string `json:"Status"`
+	IfIndex              int    `json:"ifIndex"`
 }
 
-func detectWindowsTunAdapterName() (string, error) {
+func fetchWindowsAdapters() ([]windowsAdapter, error) {
 	cmd := exec.Command(
 		"powershell",
 		"-NoProfile",
 		"-ExecutionPolicy", "Bypass",
 		"-Command",
-		"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-NetAdapter -ErrorAction Stop | Select-Object Name,InterfaceDescription,Status | ConvertTo-Json -Compress",
+		"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-NetAdapter -ErrorAction Stop | Select-Object Name,InterfaceDescription,Status,ifIndex | ConvertTo-Json -Compress",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("query adapters failed: %w, output=%s", err, strings.TrimSpace(string(output)))
+		return nil, fmt.Errorf("query adapters failed: %w, output=%s", err, strings.TrimSpace(string(output)))
 	}
 
 	adapters, err := parseWindowsAdapters(output)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	return adapters, nil
+}
 
+func detectWindowsTunAdapter() (windowsAdapter, error) {
+	adapters, err := fetchWindowsAdapters()
+	if err != nil {
+		return windowsAdapter{}, err
+	}
 	type candidate struct {
-		name  string
-		score int
+		adapter windowsAdapter
+		score   int
 	}
 	var cands []candidate
 	for _, adapter := range adapters {
@@ -120,19 +136,39 @@ func detectWindowsTunAdapterName() (string, error) {
 		if !ok {
 			continue
 		}
-		cands = append(cands, candidate{name: adapter.Name, score: score})
+		cands = append(cands, candidate{adapter: adapter, score: score})
 	}
 	if len(cands) == 0 {
-		return "", fmt.Errorf("no TAP/Wintun adapter found; install a TAP/Wintun driver or set tun.name manually (check with Get-NetAdapter)")
+		return windowsAdapter{}, fmt.Errorf("no TAP/Wintun adapter found; install a TAP/Wintun driver or set tun.name manually (check with Get-NetAdapter)")
 	}
 
 	sort.Slice(cands, func(i, j int) bool {
 		if cands[i].score != cands[j].score {
 			return cands[i].score > cands[j].score
 		}
-		return cands[i].name < cands[j].name
+		return cands[i].adapter.Name < cands[j].adapter.Name
 	})
-	return cands[0].name, nil
+	return cands[0].adapter, nil
+}
+
+func detectWindowsTunInterfaceIndex(name string) (int, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, fmt.Errorf("empty adapter name")
+	}
+	adapters, err := fetchWindowsAdapters()
+	if err != nil {
+		return 0, err
+	}
+	for _, adapter := range adapters {
+		if strings.EqualFold(strings.TrimSpace(adapter.Name), name) {
+			if adapter.IfIndex <= 0 {
+				return 0, fmt.Errorf("adapter %q has invalid ifIndex=%d", adapter.Name, adapter.IfIndex)
+			}
+			return adapter.IfIndex, nil
+		}
+	}
+	return 0, fmt.Errorf("adapter %q not found", name)
 }
 
 func parseWindowsAdapters(raw []byte) ([]windowsAdapter, error) {

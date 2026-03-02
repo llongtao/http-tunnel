@@ -6,6 +6,7 @@
   --muted: #5f6b85;
   --accent: #0f766e;
   --accent-hover: #0a5a55;
+  --danger: #b3261e;
 }
 
 * {
@@ -13,15 +14,25 @@
   font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   background: radial-gradient(circle at 0 0, #d7e3ff 0%, var(--bg) 45%);
   color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .app {
   width: min(620px, 94vw);
-  margin: 14px auto;
+  margin: 14px 0;
 }
 
 h1 {
@@ -82,11 +93,45 @@ button:hover {
 }
 
 .status,
-.msg {
+.toast {
   margin: 10px 0 0;
 }
 
-.msg {
-  color: #b3261e;
-  min-height: 18px;
+.toast-container {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 200px;
+  max-width: min(420px, 90vw);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 8px 20px rgba(10, 28, 61, 0.14);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.success {
+  border-color: rgba(15, 118, 110, 0.35);
+}
+
+.toast.error {
+  border-color: rgba(179, 38, 30, 0.35);
+  color: var(--danger);
 }

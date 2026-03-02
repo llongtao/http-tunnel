@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildDarwinRouteCommands_UsesTokenMatchForIface(t *testing.T) {
-	setup, cleanup, err := BuildRouteCommands("darwin", []string{"10.2.2.123/32"}, "10.2.2.2", "10.2.2.1")
+	setup, cleanup, err := BuildRouteCommands("darwin", []string{"10.2.2.123/32"}, "10.2.2.2", "10.2.2.1", 0)
 	if err != nil {
 		t.Fatalf("BuildRouteCommands failed: %v", err)
 	}
@@ -41,5 +41,18 @@ func TestEnsureRouteCommands_ReplacesLegacyDarwinPattern(t *testing.T) {
 	cmd := cfg.Tun.AutoRouteCommands[0]
 	if !strings.Contains(cmd, `$1=="inet" && $2=="10.2.2.2"`) {
 		t.Fatalf("legacy command was not replaced: %s", cmd)
+	}
+}
+
+func TestBuildWindowsRouteCommands_WithInterfaceIndex(t *testing.T) {
+	setup, cleanup, err := BuildRouteCommands("windows", []string{"10.2.2.123/32"}, "", "10.2.2.1", 17)
+	if err != nil {
+		t.Fatalf("BuildRouteCommands failed: %v", err)
+	}
+	if len(setup) != 1 || len(cleanup) != 1 {
+		t.Fatalf("unexpected commands count setup=%d cleanup=%d", len(setup), len(cleanup))
+	}
+	if !strings.Contains(setup[0], "IF 17") {
+		t.Fatalf("windows route command should include interface index, got: %s", setup[0])
 	}
 }
