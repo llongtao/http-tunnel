@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,13 +15,16 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"htunnel/go/internal/shared"
 )
 
 type Service struct {
-	cfg Config
+	mu            sync.RWMutex
+	cfg           Config
+	configUpdated func(Config) error
 }
 
 func New(cfg Config) *Service {
@@ -29,39 +33,87 @@ func New(cfg Config) *Service {
 }
 
 func (s *Service) Run(ctx context.Context) error {
-	if s.cfg.Server.URL == "" {
+	return s.RunWithReady(ctx, nil)
+}
+
+func (s *Service) RunWithReady(ctx context.Context, readyCh chan<- struct{}) error {
+	if s.currentConfig().Server.URL == "" {
 		return fmt.Errorf("server.url is required")
 	}
-	if strings.TrimSpace(s.cfg.Auth.Token) == "" {
-		if err := s.loginWithPassword(); err != nil {
-			return err
-		}
+	if err := s.ensureFreshToken(); err != nil {
+		return err
 	}
-	if s.cfg.Tun.Enabled {
+	cfg := s.currentConfig()
+	if cfg.Tun.Enabled {
 		if err := requireAdminPrivilege(); err != nil {
 			return err
 		}
-		if err := validateTunConfig(runtime.GOOS, &s.cfg); err != nil {
+		if err := validateTunConfig(runtime.GOOS, &cfg); err != nil {
 			return err
 		}
+		s.updateConfig(func(c *Config) {
+			c.Tun.Name = cfg.Tun.Name
+			c.Tun.InterfaceIndex = cfg.Tun.InterfaceIndex
+		})
 	}
-	if err := s.cfg.EnsureRouteCommands(runtime.GOOS); err != nil {
+	if err := cfg.EnsureRouteCommands(runtime.GOOS); err != nil {
+		return err
+	}
+	s.updateConfig(func(c *Config) {
+		c.Tun.AutoRouteCommands = append([]string(nil), cfg.Tun.AutoRouteCommands...)
+		c.Tun.AutoRouteCleanupCommands = append([]string(nil), cfg.Tun.AutoRouteCleanupCommands...)
+	})
+
+	session := NewSession(s.currentConfig())
+	session.SetTokenProvider(func() string {
+		return s.currentToken()
+	})
+	session.SetAuthRejectedHandler(func(reason string) (bool, error) {
+		if !s.hasLoginCredentials() {
+			return false, nil
+		}
+		if err := s.loginWithPassword(); err != nil {
+			return false, err
+		}
+		log.Printf("refresh token after auth reject: %s", reason)
+		return true, nil
+	})
+	if err := session.Start(ctx); err != nil {
 		return err
 	}
 
-	session := NewSession(s.cfg)
-	go session.Run(ctx)
+	if s.hasLoginCredentials() {
+		go s.tokenRefreshLoop(ctx)
+	}
 
-	tunRunner := NewTunRunner(s.cfg)
+	tunRunner := NewTunRunner(s.currentConfig())
 	if err := tunRunner.Start(ctx); err != nil {
 		return err
 	}
 
-	socks := NewSocksServer(s.cfg.Socks.Listen, session)
-	if err := socks.Run(ctx); err != nil {
+	socks := NewSocksServer(s.currentConfig().Socks.Listen, session)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- socks.Run(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		return err
+	case <-socks.Ready():
+	}
+	if readyCh != nil {
+		close(readyCh)
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
 		return err
 	}
-	return nil
 }
 
 func validateTunConfig(goos string, cfg *Config) error {
@@ -264,6 +316,12 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 }
 
+func (s *Service) SetConfigUpdatedHandler(fn func(Config) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.configUpdated = fn
+}
+
 type loginResponse struct {
 	Token      string   `json:"token"`
 	AgentID    string   `json:"agent_id"`
@@ -272,15 +330,16 @@ type loginResponse struct {
 }
 
 func (s *Service) loginWithPassword() error {
-	username := strings.TrimSpace(s.cfg.Auth.Username)
-	password := s.cfg.Auth.Password
+	snapshot := s.currentConfig()
+	username := strings.TrimSpace(snapshot.Auth.Username)
+	password := snapshot.Auth.Password
 	if username == "" || strings.TrimSpace(password) == "" {
 		return fmt.Errorf("auth.token is required or set auth.username/auth.password for login")
 	}
 
-	baseURL := strings.TrimSpace(s.cfg.Server.BaseURL)
+	baseURL := strings.TrimSpace(snapshot.Server.BaseURL)
 	if baseURL == "" {
-		baseURL = inferHTTPBaseFromWSURL(s.cfg.Server.URL)
+		baseURL = inferHTTPBaseFromWSURL(snapshot.Server.URL)
 	}
 	if baseURL == "" {
 		return fmt.Errorf("cannot infer server base url; set server.base_url")
@@ -296,7 +355,7 @@ func (s *Service) loginWithPassword() error {
 		return fmt.Errorf("marshal login payload failed: %w", err)
 	}
 
-	timeout := time.Duration(s.cfg.Server.ConnectTimeoutSec) * time.Second
+	timeout := time.Duration(snapshot.Server.ConnectTimeoutSec) * time.Second
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
@@ -326,21 +385,27 @@ func (s *Service) loginWithPassword() error {
 		return fmt.Errorf("login response missing token")
 	}
 
-	s.cfg.Auth.Token = strings.TrimSpace(lr.Token)
-	if strings.TrimSpace(lr.AgentID) != "" {
-		s.cfg.Agent.ID = strings.TrimSpace(lr.AgentID)
-	} else if s.cfg.Agent.ID == "" {
-		s.cfg.Agent.ID = username
+	s.updateConfig(func(cfg *Config) {
+		cfg.Auth.Token = strings.TrimSpace(lr.Token)
+		if strings.TrimSpace(lr.AgentID) != "" {
+			cfg.Agent.ID = strings.TrimSpace(lr.AgentID)
+		} else if cfg.Agent.ID == "" {
+			cfg.Agent.ID = username
+		}
+		if ws, err := inferWSFromHTTPBase(baseURL); err == nil {
+			cfg.Server.URL = ws
+		} else if strings.TrimSpace(lr.WSURL) != "" {
+			cfg.Server.URL = strings.TrimSpace(lr.WSURL)
+		}
+		if len(lr.RouteCIDRs) > 0 {
+			cfg.Tun.RouteCIDRs = append([]string(nil), lr.RouteCIDRs...)
+		}
+	})
+	updated := s.currentConfig()
+	log.Printf("login success: user=%s ws=%s routes=%d", username, updated.Server.URL, len(updated.Tun.RouteCIDRs))
+	if err := s.persistConfig(updated); err != nil {
+		log.Printf("persist refreshed config failed: %v", err)
 	}
-	if ws, err := inferWSFromHTTPBase(baseURL); err == nil {
-		s.cfg.Server.URL = ws
-	} else if strings.TrimSpace(lr.WSURL) != "" {
-		s.cfg.Server.URL = strings.TrimSpace(lr.WSURL)
-	}
-	if len(lr.RouteCIDRs) > 0 {
-		s.cfg.Tun.RouteCIDRs = append([]string(nil), lr.RouteCIDRs...)
-	}
-	log.Printf("login success: user=%s ws=%s routes=%d", username, s.cfg.Server.URL, len(s.cfg.Tun.RouteCIDRs))
 	return nil
 }
 
@@ -385,4 +450,135 @@ func inferWSFromHTTPBase(baseURL string) (string, error) {
 	u.RawQuery = ""
 	u.Fragment = ""
 	return u.String(), nil
+}
+
+func (s *Service) currentConfig() Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cfg
+}
+
+func (s *Service) currentToken() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return strings.TrimSpace(s.cfg.Auth.Token)
+}
+
+func (s *Service) hasLoginCredentials() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return strings.TrimSpace(s.cfg.Auth.Username) != "" && strings.TrimSpace(s.cfg.Auth.Password) != ""
+}
+
+func (s *Service) updateConfig(fn func(*Config)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fn(&s.cfg)
+}
+
+func (s *Service) persistConfig(cfg Config) error {
+	s.mu.RLock()
+	fn := s.configUpdated
+	s.mu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+	return fn(cfg)
+}
+
+func (s *Service) ensureFreshToken() error {
+	token := s.currentToken()
+	if !tokenNeedsRefresh(token, time.Minute) {
+		return nil
+	}
+	if !s.hasLoginCredentials() {
+		if strings.TrimSpace(token) == "" {
+			return fmt.Errorf("auth.token is required or set auth.username/auth.password for login")
+		}
+		return nil
+	}
+	return s.loginWithPassword()
+}
+
+func (s *Service) tokenRefreshLoop(ctx context.Context) {
+	const retryDelay = 30 * time.Second
+	for {
+		delay := nextTokenRefreshDelay(s.currentToken(), 5*time.Minute)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+
+		if err := s.loginWithPassword(); err != nil {
+			log.Printf("token refresh failed: %v", err)
+			timer.Stop()
+			timer = time.NewTimer(retryDelay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			continue
+		}
+		log.Printf("token refreshed")
+	}
+}
+
+func nextTokenRefreshDelay(token string, margin time.Duration) time.Duration {
+	exp, ok := tokenExpiry(token)
+	if !ok {
+		return 0
+	}
+	ttl := time.Until(exp)
+	if ttl <= 0 {
+		return 0
+	}
+	if margin <= 0 {
+		margin = time.Minute
+	}
+	if ttl <= margin {
+		return 0
+	}
+	if ttl <= 2*margin {
+		margin = ttl / 2
+	}
+	refreshAt := exp.Add(-margin)
+	delay := time.Until(refreshAt)
+	if delay < 0 {
+		return 0
+	}
+	return delay
+}
+
+func tokenNeedsRefresh(token string, margin time.Duration) bool {
+	return nextTokenRefreshDelay(token, margin) == 0
+}
+
+func tokenExpiry(token string) (time.Time, bool) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return time.Time{}, false
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return time.Time{}, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return time.Time{}, false
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return time.Time{}, false
+	}
+	if claims.Exp <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(claims.Exp, 0), true
 }

@@ -35,6 +35,7 @@ type App struct {
 	configPath string
 
 	mu       sync.Mutex
+	starting bool
 	running  bool
 	cancel   context.CancelFunc
 	started  time.Time
@@ -51,6 +52,7 @@ type ConfigView struct {
 }
 
 type StatusView struct {
+	Starting  bool   `json:"starting"`
 	Running   bool   `json:"running"`
 	StartedAt int64  `json:"startedAt"`
 	LastError string `json:"lastError"`
@@ -150,36 +152,17 @@ func (a *App) Connect(req LoginRequest) (StatusView, error) {
 	return a.GetStatus(), nil
 }
 
-func (a *App) AutoConnect() (StatusView, error) {
-	cfg, err := a.readConfig()
-	if err != nil {
-		return a.GetStatus(), err
-	}
-	if cfg.Server.URL == "" || !isTokenValid(cfg.Auth.Token) {
-		return a.GetStatus(), nil
-	}
-	if err := applyLocalDefaults(&cfg); err != nil {
-		return a.GetStatus(), err
-	}
-	if err := a.saveConfig(cfg); err != nil {
-		return a.GetStatus(), err
-	}
-	if err := a.StartAgent(); err != nil {
-		return a.GetStatus(), err
-	}
-	return a.GetStatus(), nil
-}
-
 func (a *App) StartAgent() error {
 	a.mu.Lock()
-	if a.running {
+	if a.running || a.starting {
 		a.mu.Unlock()
 		return nil
 	}
+	a.starting = true
+	a.running = false
 	runCtx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
-	a.running = true
-	a.started = time.Now()
+	a.started = time.Time{}
 	a.lastErr = ""
 	a.runCount++
 	a.mu.Unlock()
@@ -187,6 +170,7 @@ func (a *App) StartAgent() error {
 	cfg, err := a.readConfig()
 	if err != nil {
 		a.mu.Lock()
+		a.starting = false
 		a.running = false
 		a.cancel = nil
 		a.lastErr = err.Error()
@@ -196,10 +180,44 @@ func (a *App) StartAgent() error {
 	}
 
 	svc := agent.New(cfg)
+	svc.SetConfigUpdatedHandler(func(updated agent.Config) error {
+		return a.saveConfig(updated)
+	})
+
+	readyCh := make(chan struct{})
+	errCh := make(chan error, 1)
 	go func() {
-		err := svc.Run(runCtx)
+		errCh <- svc.RunWithReady(runCtx, readyCh)
+	}()
+
+	select {
+	case <-readyCh:
+		a.mu.Lock()
+		a.starting = false
+		a.running = true
+		a.started = time.Now()
+		a.mu.Unlock()
+	case err := <-errCh:
+		a.mu.Lock()
+		a.starting = false
+		a.running = false
+		a.cancel = nil
+		if err != nil && runCtx.Err() == nil {
+			a.lastErr = err.Error()
+		}
+		a.mu.Unlock()
+		cancel()
+		if err == nil {
+			err = context.Canceled
+		}
+		return err
+	}
+
+	go func() {
+		err := <-errCh
 		a.mu.Lock()
 		defer a.mu.Unlock()
+		a.starting = false
 		a.running = false
 		a.cancel = nil
 		if err != nil && runCtx.Err() == nil {
@@ -212,7 +230,7 @@ func (a *App) StartAgent() error {
 func (a *App) StopAgent() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.running || a.cancel == nil {
+	if (!a.running && !a.starting) || a.cancel == nil {
 		return nil
 	}
 	a.cancel()
@@ -223,6 +241,7 @@ func (a *App) GetStatus() StatusView {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	status := StatusView{
+		Starting:  a.starting,
 		Running:   a.running,
 		LastError: a.lastErr,
 		RunCount:  a.runCount,
@@ -567,34 +586,4 @@ func decryptString(cipherText string, key []byte) (string, error) {
 		return "", err
 	}
 	return string(plain), nil
-}
-
-func isTokenValid(token string) bool {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return false
-	}
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return false
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return false
-	}
-	var claims map[string]interface{}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return false
-	}
-	expRaw, ok := claims["exp"]
-	if !ok {
-		return false
-	}
-	expFloat, ok := expRaw.(float64)
-	if !ok {
-		return false
-	}
-	exp := int64(expFloat)
-	now := time.Now().Unix()
-	return exp-now > 30
 }

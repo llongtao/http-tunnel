@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,8 +31,10 @@ type Session struct {
 	closed  bool
 	writeMu sync.Mutex
 
-	streams      *shared.SafeMap[string, *wsStream]
-	pendingOpens *shared.SafeMap[string, chan openResult]
+	tokenProvider func() string
+	authRejected  func(reason string) (bool, error)
+	streams       *shared.SafeMap[string, *wsStream]
+	pendingOpens  *shared.SafeMap[string, chan openResult]
 }
 
 func NewSession(cfg Config) *Session {
@@ -42,18 +45,34 @@ func NewSession(cfg Config) *Session {
 	}
 }
 
-func (s *Session) Run(ctx context.Context) {
+func (s *Session) SetTokenProvider(fn func() string) {
+	s.tokenProvider = fn
+}
+
+func (s *Session) SetAuthRejectedHandler(fn func(reason string) (bool, error)) {
+	s.authRejected = fn
+}
+
+func (s *Session) Start(ctx context.Context) error {
+	errCh, err := s.connect(ctx)
+	if err != nil {
+		return err
+	}
+	go s.maintain(ctx, errCh)
+	return nil
+}
+
+func (s *Session) maintain(ctx context.Context, errCh <-chan error) {
 	backoff := time.Second
 	for {
 		select {
 		case <-ctx.Done():
 			s.shutdownAll()
 			return
-		default:
-		}
-
-		if err := s.connectAndServe(ctx); err != nil {
-			log.Printf("session disconnected: %v", err)
+		case err := <-errCh:
+			if err != nil {
+				log.Printf("session disconnected: %v", err)
+			}
 		}
 
 		s.detach()
@@ -65,17 +84,43 @@ func (s *Session) Run(ctx context.Context) {
 			return
 		case <-time.After(backoff):
 		}
-		if backoff < 10*time.Second {
-			backoff *= 2
+
+		nextErrCh, err := s.connect(ctx)
+		if err != nil {
+			log.Printf("session reconnect failed: %v", err)
+			if backoff < 10*time.Second {
+				backoff *= 2
+			}
+			continue
 		}
+		errCh = nextErrCh
+		backoff = time.Second
 	}
 }
 
-func (s *Session) connectAndServe(ctx context.Context) error {
+func (s *Session) connect(ctx context.Context) (<-chan error, error) {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		errCh, retry, err := s.connectOnce(ctx)
+		if err == nil {
+			return errCh, nil
+		}
+		lastErr = err
+		if !retry {
+			break
+		}
+	}
+	if lastErr == nil {
+		lastErr = errors.New("connect failed")
+	}
+	return nil, lastErr
+}
+
+func (s *Session) connectOnce(ctx context.Context) (<-chan error, bool, error) {
 	origin := "http://localhost/"
 	cfg, err := websocket.NewConfig(s.cfg.Server.URL, origin)
 	if err != nil {
-		return fmt.Errorf("new websocket config: %w", err)
+		return nil, false, fmt.Errorf("new websocket config: %w", err)
 	}
 	cfg.Version = websocket.ProtocolVersionHybi13
 	cfg.Dialer = &net.Dialer{Timeout: time.Duration(s.cfg.Server.ConnectTimeoutSec) * time.Second}
@@ -83,43 +128,60 @@ func (s *Session) connectAndServe(ctx context.Context) error {
 
 	conn, err := websocket.DialConfig(cfg)
 	if err != nil {
-		return fmt.Errorf("dial websocket: %w", err)
+		return nil, false, fmt.Errorf("dial websocket: %w", err)
 	}
 
 	if err := s.attach(conn); err != nil {
 		_ = conn.Close()
-		return err
+		return nil, false, err
 	}
 	log.Printf("connected to %s", s.cfg.Server.URL)
 
+	token := strings.TrimSpace(s.cfg.Auth.Token)
+	if s.tokenProvider != nil {
+		token = strings.TrimSpace(s.tokenProvider())
+	}
 	if err := s.send(&protocol.Envelope{
 		Type:         protocol.TypeAuth,
-		Token:        s.cfg.Auth.Token,
+		Token:        token,
 		AgentID:      s.cfg.Agent.ID,
 		AgentVersion: s.cfg.Agent.Version,
 		Ts:           time.Now().UnixMilli(),
 	}); err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("send auth: %w", err)
+		s.detach()
+		return nil, false, fmt.Errorf("send auth: %w", err)
 	}
 
 	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	var data []byte
 	if err := websocket.Message.Receive(conn, &data); err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("read auth response: %w", err)
+		s.detach()
+		return nil, false, fmt.Errorf("read auth response: %w", err)
 	}
 	env, err := protocol.Unmarshal(data)
 	if err != nil {
 		_ = conn.Close()
-		return fmt.Errorf("parse auth response: %w", err)
+		s.detach()
+		return nil, false, fmt.Errorf("parse auth response: %w", err)
 	}
 	if env.Type != protocol.TypeAuthResp || !env.Ok {
 		_ = conn.Close()
+		s.detach()
 		if env.Reason == "" {
 			env.Reason = "auth rejected"
 		}
-		return errors.New(env.Reason)
+		if s.authRejected != nil {
+			retry, refreshErr := s.authRejected(env.Reason)
+			if refreshErr != nil {
+				return nil, false, fmt.Errorf("%s: %w", env.Reason, refreshErr)
+			}
+			if retry {
+				return nil, true, errors.New(env.Reason)
+			}
+		}
+		return nil, false, errors.New(env.Reason)
 	}
 
 	_ = conn.SetReadDeadline(time.Time{})
@@ -127,13 +189,7 @@ func (s *Session) connectAndServe(ctx context.Context) error {
 	errCh := make(chan error, 1)
 	go s.pingLoop(ctx, errCh)
 	go s.readLoop(errCh)
-
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-errCh:
-		return err
-	}
+	return errCh, false, nil
 }
 
 func (s *Session) readLoop(errCh chan<- error) {

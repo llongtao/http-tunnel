@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -15,11 +16,21 @@ type SocksServer struct {
 	listenAddr string
 	session    *Session
 
-	ln net.Listener
+	ln        net.Listener
+	readyCh   chan struct{}
+	readyOnce sync.Once
 }
 
 func NewSocksServer(listenAddr string, session *Session) *SocksServer {
-	return &SocksServer{listenAddr: listenAddr, session: session}
+	return &SocksServer{
+		listenAddr: listenAddr,
+		session:    session,
+		readyCh:    make(chan struct{}),
+	}
+}
+
+func (s *SocksServer) Ready() <-chan struct{} {
+	return s.readyCh
 }
 
 func (s *SocksServer) Run(ctx context.Context) error {
@@ -29,6 +40,9 @@ func (s *SocksServer) Run(ctx context.Context) error {
 	}
 	s.ln = ln
 	log.Printf("socks5 listen on %s", s.listenAddr)
+	s.readyOnce.Do(func() {
+		close(s.readyCh)
+	})
 
 	go func() {
 		<-ctx.Done()

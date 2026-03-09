@@ -49,15 +49,21 @@ function setMsg(msg, ok = false) {
 }
 
 let currentRunning = false;
+let currentStarting = false;
+let pending = false;
 
 function renderStatus(st) {
+  currentStarting = !!st.starting;
   currentRunning = !!st.running;
   const t = st.startedAt ? new Date(st.startedAt * 1000).toLocaleString() : "-";
   document.getElementById(
     "statusText",
-  ).textContent = `状态: ${st.running ? "已连接" : "已断开"} | 启动时间: ${t}${st.lastError ? ` | 最近错误: ${st.lastError}` : ""}`;
+  ).textContent = `状态: ${st.starting ? "连接中" : st.running ? "已连接" : "已断开"} | 启动时间: ${t}${st.lastError ? ` | 最近错误: ${st.lastError}` : ""}`;
   const btn = document.getElementById("btnToggle");
-  btn.textContent = st.running ? "断开连接" : "连接";
+  btn.textContent = st.starting ? "连接中..." : st.running ? "断开连接" : "连接";
+  btn.disabled = pending || st.starting;
+  const refreshBtn = document.getElementById("btnRefresh");
+  if (refreshBtn) refreshBtn.disabled = pending;
 }
 
 async function loadConfig() {
@@ -89,29 +95,34 @@ async function disconnect() {
 }
 
 async function toggleConnect() {
+  if (pending || currentStarting) return;
+  pending = true;
+  renderStatus({
+    starting: currentStarting,
+    running: currentRunning,
+    startedAt: 0,
+    lastError: "",
+  });
   try {
     if (currentRunning) {
       await disconnect();
       setMsg("已断开", true);
       return;
     }
+    renderStatus({
+      starting: true,
+      running: false,
+      startedAt: 0,
+      lastError: "",
+    });
     await connect();
     setMsg("已连接", true);
   } catch (e) {
     setMsg(String(e));
     await refreshStatus();
-  }
-}
-
-async function tryAutoConnect() {
-  try {
-    const st = await api().AutoConnect();
-    renderStatus(st);
-    if (st.running) {
-      setMsg("检测到有效 token，已自动连接", true);
-    }
-  } catch (_) {
-    // ignore auto-connect failures; user can click connect manually.
+  } finally {
+    pending = false;
+    await refreshStatus();
   }
 }
 
@@ -128,9 +139,6 @@ document.getElementById("btnRefresh").addEventListener("click", async () => {
   try {
     await loadConfig();
     await refreshStatus();
-    if (!currentRunning) {
-      await tryAutoConnect();
-    }
   } catch (e) {
     setMsg(`初始化失败: ${e}`);
   }
